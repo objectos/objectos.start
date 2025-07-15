@@ -65,13 +65,13 @@ public abstract class WayTest00Support {
       private Builder() {
         try {
           final Path originalWay;
-          originalWay = Path.of("main", "objectos", "way", "Way.java");
+          originalWay = Path.of("main", "objectos", "start", "Way.java");
 
           final String originalContents;
           originalContents = Files.readString(originalWay, StandardCharsets.UTF_8);
 
           final String contents;
-          contents = originalContents.replace("package objectos.way;", "");
+          contents = originalContents.replace("package objectos.start;", "");
 
           addFile("Way.java", contents);
         } catch (IOException e) {
@@ -166,7 +166,7 @@ public abstract class WayTest00Support {
       try (BufferedReader reader = process.errorReader()) {
         String line;
         while ((line = reader.readLine()) != null) {
-          noteSink.send(notes.stderr, line);
+          System.out.println(line);
         }
       } catch (IOException e) {
         noteSink.send(notes.ioException, e);
@@ -177,7 +177,7 @@ public abstract class WayTest00Support {
       try (BufferedReader reader = process.inputReader()) {
         String line;
         while ((line = reader.readLine()) != null) {
-          noteSink.send(notes.stdout, line);
+          System.out.println(line);
         }
       } catch (IOException e) {
         noteSink.send(notes.ioException, e);

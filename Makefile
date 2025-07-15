@@ -53,3 +53,52 @@ include make/java-core.mk
 #
 
 include make/common-clean.mk
+
+#
+# start@compile
+#
+
+## Compile deps
+COMPILE_DEPS := $(WAY)
+
+include make/java-compile.mk
+
+#
+# start@test-compile
+#
+
+## test compile deps
+TEST_COMPILE_DEPS := $(TESTNG)
+
+include make/java-test-compile.mk
+
+#
+# start@test
+#
+
+## test main class
+TEST_MAIN := objectos.start.StartTest
+
+## www test runtime dependencies
+TEST_RUNTIME_DEPS := $(SLF4J_NOP)
+
+## test --add-modules
+TEST_ADD_MODULES := org.testng
+TEST_ADD_MODULES += org.slf4j
+
+## test --add-reads
+TEST_ADD_READS := objectos.start=org.testng
+
+include make/java-test.mk
+
+#
+# start@jar
+#
+
+include make/java-jar.mk
+
+#
+# start@install
+#
+
+include make/java-install.mk

@@ -1,0 +1,9 @@
+<!DOCTYPE suite SYSTEM "https://testng.org/testng-1.0.dtd">
+
+<suite name="Objectos Start" verbose="2">
+    <test name="All">
+        <packages>
+            <package name="objectos.*"></package>
+        </packages>
+    </test>
+</suite>

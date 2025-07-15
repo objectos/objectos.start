@@ -36,7 +36,9 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 
-/// Generates, builds and manages an Objectos Way application.
+/// Bootstraps Objectos Start.
+///
+/// Objectos Start generates, builds and manages one or more Objectos Way applications.
 ///
 /// This class is not part of the Objectos Start JAR file.
 /// It is placed in the main source tree to ease its development.
@@ -148,7 +150,7 @@ final class Way {
 
     basedir = Path.of(basedirPath);
 
-    buffer = new byte[8192];
+    buffer = new byte[16 * 1024];
 
     try {
       digest = MessageDigest.getInstance("SHA-1");
@@ -183,19 +185,23 @@ final class Way {
   private byte executeInit() {
     logInfo("Objectos Way v%s", version);
 
-    logInfo("%10s: %s", "basedir", basedir);
+    initInfo("basedir", basedir);
 
     try {
-      logInfo("%10s: %s", "repo-local", repoLocal);
+      initInfo("repo-local", repoLocal);
 
       ensureDirectory(repoLocal);
     } catch (IOException e) {
       return toError("Failed to create directory: " + repoLocal, e);
     }
 
-    logInfo("%10s: %s", "repo-remote", repoRemote);
+    initInfo("repo-remote", repoRemote);
 
     return $BOOT_DEPS;
+  }
+
+  private void initInfo(String key, Object value) {
+    logInfo("%14s: %s", key, value);
   }
 
   // ##################################################################
@@ -347,7 +353,8 @@ final class Way {
 
     final URI toURI() {
       return URI.create(
-          repoRemote + "/maven2/" + groupId.replace('.', '/')
+          repoRemote
+              + "/" + groupId.replace('.', '/')
               + "/" + artifactId
               + "/" + version
               + "/" + artifactId + "-" + version + ".jar"
