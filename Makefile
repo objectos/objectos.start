@@ -73,6 +73,9 @@ include make/java-jar.mk
 # start@test-repo
 #
 
+## Way.java src
+WAY_JAVA := $(MAIN)/objectos/start/Way.java
+
 ## test repo
 TEST_REPO := $(WORK)/test-repo
 
@@ -84,7 +87,8 @@ TEST_REPO_DEP_WAY := $(TEST_REPO)/$(call mk-resolved-jar,$(WAY))
 TEST_REPO_SRC_WAY := $(call gav-to-local,$(WAY))
 
 ## test repo requirements
-TEST_REPO_REQS := $(TEST_REPO_DEP_SELF)
+TEST_REPO_REQS := $(WAY_JAVA)
+TEST_REPO_REQS += $(TEST_REPO_DEP_SELF)
 TEST_REPO_REQS += $(TEST_REPO_DEP_WAY)
 
 ## test repo marker
@@ -109,6 +113,12 @@ $(TEST_REPO_DEP_WAY): $(TEST_REPO_SRC_WAY)
 	cp $< $@
 	
 $(TEST_REPO_MARKER): $(TEST_REPO_REQS) | $(TEST_REPO)
+	sed -i \
+		-e '/sed:VERSION/s/"[^"]*"/"$(VERSION)"/' \
+		-e '/sed:WAY_SHA1/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_WAY) | cut -d' ' -f1 -z)"/' \
+		-e '/sed:START_SHA1/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_SELF) | cut -d' ' -f1 -z)"/' \
+		$(WAY_JAVA)	
+	touch $@
 
 #
 # start@test-compile
@@ -147,12 +157,6 @@ include make/java-install.mk
 #
 # start@way
 #
-
-## main directory
-MAIN := main
-
-## Way.java src
-WAY_JAVA := $(MAIN)/objectos/start/Way.java
 
 ## Way.java dest
 WAY_SCRIPT := Way.java

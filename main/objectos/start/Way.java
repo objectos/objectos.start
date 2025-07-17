@@ -70,7 +70,7 @@ final class Way {
 
   private byte state;
 
-  private final String version = "DEV"; // sed:VERSION
+  private final String version = "0.2.6-SNAPSHOT"; // sed:VERSION
 
   private Way() {
   }
@@ -399,9 +399,9 @@ final class Way {
 
     object0 = new Artifact[] {
         new Artifact("br.com.objectos", "objectos.way", version,
-            "" /* sed:WAY_SHA1 */ ),
+            "66032cc22fe7d13495f530278b8fcfb99e52cf1d" /* sed:WAY_SHA1 */ ),
         new Artifact("br.com.objectos", "objectos.start", version,
-            "" /* sed:START_SHA1 */ )
+            "fc8ad53655878409696fcd3b53afa44d71a0180f" /* sed:START_SHA1 */ )
     };
 
     return $BOOT_DEPS_HAS_NEXT;
