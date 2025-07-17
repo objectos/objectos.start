@@ -74,13 +74,6 @@ MODULE_PATH_SEPARATOR := $(colon)
 ## $(call module-path,[list of deps])
 module-path = $(subst $(space),$(MODULE_PATH_SEPARATOR),$(1))
 
-## gav-to-artifact: convert a GAV into a relative path name
-##
-## syntax:
-## $(call gav-to-artifact,com.example/foo/1.2.3)
-## => com/example/foo/1.2.3/foo-1.2.3
-gav-to-artifact = $(call mk-dependency,$(call word-solidus,$(1),1),$(call word-solidus,$(1),2),$(call word-solidus,$(1),3))
-
 ## gav-to-resolution-file:
 ##
 ## syntax:

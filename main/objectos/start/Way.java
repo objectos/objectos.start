@@ -70,19 +70,14 @@ final class Way {
 
   private byte state;
 
-  private final String version;
+  private final String version = "DEV"; // sed:VERSION
 
-  private final String waySha1;
-
-  private Way(String version, String waySha1) {
-    this.version = version;
-
-    this.waySha1 = waySha1;
+  private Way() {
   }
 
   public static void main(String[] args) {
     final Way way;
-    way = new Way("0.2.5", "e5a9574a4b58c9af8cc4c84e2f3e032786c32fa4");
+    way = new Way();
 
     way.start(args);
   }
@@ -161,7 +156,9 @@ final class Way {
     enum Source {
       COMMAND_LINE,
 
-      DEFAULT;
+      DEFAULT,
+
+      SYSTEM;
     }
 
     final Kind kind;
@@ -192,9 +189,13 @@ final class Way {
     final void parse(Source source, String rawValue) {
       value = switch (kind) {
         case DURATION -> Duration.parse(rawValue);
+
         case INTEGER -> Integer.valueOf(rawValue);
+
         case PATH -> Path.of(rawValue);
+
         case STRING -> rawValue;
+
         case URI -> URI.create(rawValue);
       };
 
@@ -234,9 +235,11 @@ final class Way {
   // ad-hoc enum so instances can be GC'ed after use.
   private class Options {
 
+    // these must come first
     final Map<String, Option> byName = new LinkedHashMap<>();
     int maxLength = 0;
 
+    // options
     final Option basedir = path("--basedir", Path.of(System.getProperty("user.dir", "")));
 
     final Option bufferSize = integer("--buffer-size", 16 * 1024);
@@ -371,7 +374,6 @@ final class Way {
     }
 
     // repoLocal
-
     try {
       final Option repoLocal;
       repoLocal = options.repoLocal;
@@ -396,7 +398,10 @@ final class Way {
     int0 = 0;
 
     object0 = new Artifact[] {
-        new Artifact("br.com.objectos", "objectos.way", version, waySha1)
+        new Artifact("br.com.objectos", "objectos.way", version,
+            "" /* sed:WAY_SHA1 */ ),
+        new Artifact("br.com.objectos", "objectos.start", version,
+            "" /* sed:START_SHA1 */ )
     };
 
     return $BOOT_DEPS_HAS_NEXT;

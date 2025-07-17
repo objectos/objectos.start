@@ -32,7 +32,7 @@ REMOTE_REPOS := https://repo.maven.apache.org/maven2
 
 ## Dependencies
 H2 := com.h2database/h2/2.3.232
-WAY := br.com.objectos/objectos.way/$(VERSION)
+WAY := $(GROUP_ID)/objectos.way/$(VERSION)
 SLF4J_NOP := org.slf4j/slf4j-nop/2.0.17
 TESTNG := org.testng/testng/7.11.0
 
@@ -64,6 +64,53 @@ COMPILE_DEPS := $(WAY)
 include make/java-compile.mk
 
 #
+# start@jar
+#
+
+include make/java-jar.mk
+
+#
+# start@test-repo
+#
+
+## test repo
+TEST_REPO := $(WORK)/test-repo
+
+## test repo dep (self)
+TEST_REPO_DEP_SELF := $(TEST_REPO)/$(call mk-resolved-jar,$(GROUP_ID)/$(ARTIFACT_ID)/$(VERSION))
+
+## test repo dep (way)
+TEST_REPO_DEP_WAY := $(TEST_REPO)/$(call mk-resolved-jar,$(WAY))
+TEST_REPO_SRC_WAY := $(call gav-to-local,$(WAY))
+
+## test repo requirements
+TEST_REPO_REQS := $(TEST_REPO_DEP_SELF)
+TEST_REPO_REQS += $(TEST_REPO_DEP_WAY)
+
+## test repo marker
+TEST_REPO_MARKER := $(WORK)/test-repo-marker
+
+.PHONY: test-repo
+test-repo: $(TEST_REPO_MARKER)
+
+.PHONY: test-repo-clean
+test-repo-clean:
+	rm -rf $(TEST_REPO) $(TEST_REPO_MARKER)
+
+$(TEST_REPO):
+	mkdir --parents $@
+	
+$(TEST_REPO_DEP_SELF): $(JAR_FILE)
+	mkdir --parents $(@D)
+	cp $< $@
+
+$(TEST_REPO_DEP_WAY): $(TEST_REPO_SRC_WAY)
+	mkdir --parents $(@D)
+	cp $< $@
+	
+$(TEST_REPO_MARKER): $(TEST_REPO_REQS) | $(TEST_REPO)
+
+#
 # start@test-compile
 #
 
@@ -90,12 +137,6 @@ TEST_ADD_MODULES += org.slf4j
 TEST_ADD_READS := objectos.start=org.testng
 
 include make/java-test.mk
-
-#
-# start@jar
-#
-
-include make/java-jar.mk
 
 #
 # start@install

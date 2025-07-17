@@ -21,8 +21,8 @@ import org.testng.annotations.Test;
 public final class WayTest01Options {
 
   @Test
-  public void testCase01() {
-    URI repo = URI.create("https://repo.maven.apache.org/maven2");
+  public void repoRemote01() {
+    URI repo = URI.create("https://repo.maven.apache.org/maven2/");
 
     System.out.println(repo);
 
