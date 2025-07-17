@@ -21,6 +21,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import objectos.way.App;
 import objectos.way.Io;
 import objectos.way.Note;
@@ -141,6 +143,33 @@ final class Y {
 
   // ##################################################################
   // # END: ShutdownHook
+  // ##################################################################
+
+  // ##################################################################
+  // # BEGIN: Way.Logger
+  // ##################################################################
+
+  public static final class WayLogger extends Way.Logger {
+
+    private final List<String> logs = new ArrayList<>();
+
+    private WayLogger() {}
+
+    @Override
+    final void print(String log) {
+      super.print(log);
+
+      logs.add(log);
+    }
+
+  }
+
+  public static WayLogger wayLogger() {
+    return new WayLogger();
+  }
+
+  // ##################################################################
+  // # END: Way.Logger
   // ##################################################################
 
 }

@@ -15,20 +15,27 @@
  */
 package objectos.start;
 
-import java.net.URI;
 import org.testng.annotations.Test;
 
 public final class WayTest01Options {
 
   @Test
   public void repoRemote01() {
-    URI repo = URI.create("https://repo.maven.apache.org/maven2/");
+    final Y.WayLogger logger;
+    logger = Y.wayLogger();
 
-    System.out.println(repo);
+    final Way way;
+    way = new Way();
 
-    URI uri = repo.resolve("foo.jar");
+    way.logger(logger);
 
-    System.out.println(uri);
+    way.object0(args("--repo-remote", "work/test-repo"));
+
+    way.execute(Way.$OPTIONS, Way.$BOOT_DEPS);
+  }
+
+  private String[] args(String... s) {
+    return s;
   }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Objectos Software LTDA.
+ * Copyright (C) 2025 Objectos Software LTDA.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,6 @@ import static java.lang.System.Logger.Level.INFO;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -48,10 +47,6 @@ final class Way {
 
   private byte[] buffer;
 
-  private final Clock clock = Clock.systemDefaultZone();
-
-  private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
-
   private MessageDigest digest;
 
   private final HexFormat hexFormat = HexFormat.of();
@@ -60,7 +55,7 @@ final class Way {
 
   private int int0;
 
-  private PrintStream logger;
+  private Logger logger;
 
   private Object object0;
 
@@ -72,14 +67,20 @@ final class Way {
 
   private final String version = "0.2.6-SNAPSHOT"; // sed:VERSION
 
-  private Way() {
-  }
+  // visible for testing
+  Way() {}
 
   public static void main(String[] args) {
     final Way way;
     way = new Way();
 
     way.start(args);
+  }
+
+  private void start(String[] args) {
+    object0 = args;
+
+    execute($OPTIONS, $RUNNING);
   }
 
   // ##################################################################
@@ -101,18 +102,16 @@ final class Way {
   static final byte $RUNNING = 9;
   static final byte $ERROR = 10;
 
-  private void start(String[] args) {
-    object0 = args;
+  final void execute(byte from, byte to) {
+    state = from;
 
-    state = $OPTIONS;
-
-    while (state < $RUNNING) {
-      state = execute(state);
+    while (state < to) {
+      execute();
     }
   }
 
-  final byte execute(byte state) {
-    return switch (state) {
+  private void execute() {
+    state = switch (state) {
       case $OPTIONS -> executeOptions();
       case $OPTIONS_PARSE -> executeOptionsParse();
 
@@ -153,26 +152,23 @@ final class Way {
 
     }
 
-    enum Source {
-      COMMAND_LINE,
-
-      DEFAULT,
-
-      SYSTEM;
-    }
-
     final Kind kind;
+
     final String name;
 
     Object value;
-    Source source;
+
+    // DEF = Default
+    // CLI = Command Line
+    // SYS = System
+    String source;
 
     Option(Kind kind, String name, Object defaultValue) {
       this.kind = kind;
       this.name = name;
       this.value = defaultValue;
 
-      source = Source.DEFAULT;
+      source = "DEF";
     }
 
     @Override
@@ -186,7 +182,7 @@ final class Way {
       return name.hashCode();
     }
 
-    final void parse(Source source, String rawValue) {
+    final void parse(String source, String rawValue) {
       value = switch (kind) {
         case DURATION -> Duration.parse(rawValue);
 
@@ -323,7 +319,7 @@ final class Way {
       final String rawValue;
       rawValue = args[int0++];
 
-      option.parse(Option.Source.COMMAND_LINE, rawValue);
+      option.parse("CLI", rawValue);
 
       return $OPTIONS_PARSE;
     } catch (RuntimeException parseException) {
@@ -340,17 +336,17 @@ final class Way {
   // ##################################################################
 
   private byte executeInit() {
-    logger = System.out;
+    if (logger != null) {
+      logger = new Logger();
+    }
 
-    logInfo("Objectos Start v%s", version);
+    logger.info("Objectos Start v%s", version);
 
     final String format;
-    format = "%-" + options.maxLength + "s : %s [%s]";
-
-    System.out.println(format);
+    format = "(%3s) %-" + options.maxLength + "s %s";
 
     for (Option option : options.values()) {
-      logInfo(format, option.name, option.value, option.source);
+      logger.info(format, option.source, option.name, option.value);
     }
 
     return $INIT_TRY;
@@ -441,7 +437,7 @@ final class Way {
     final Path file;
     file = dep.local();
 
-    logInfo("DEP %s -> %s", uri, file);
+    logger.info("DEP %s -> %s", uri, file);
 
     final Option httpRequestTimeout;
     httpRequestTimeout = options.httpRequestTimout;
@@ -499,12 +495,12 @@ final class Way {
     sha1 = hexFormat.formatHex(sha1Bytes);
 
     if (!sha1.equals(dep.sha1)) {
-      logError("Checksum mismatch for %s: got %s", file, sha1);
+      logger.error("Checksum mismatch for %s: got %s", file, sha1);
 
       return $ERROR;
     }
 
-    logInfo("CHK %s", file);
+    logger.info("CHK %s", file);
 
     return $BOOT_DEPS_HAS_NEXT;
   }
@@ -622,37 +618,52 @@ final class Way {
   // # BEGIN: Logging
   // ##################################################################
 
-  private void log0(System.Logger.Level level, String message) {
-    final LocalDateTime now;
-    now = LocalDateTime.now(clock);
+  static class Logger {
 
-    final String time;
-    time = dateFormat.format(now);
+    private final Clock clock = Clock.systemDefaultZone();
 
-    final String markerName;
-    markerName = level.getName();
+    private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-    logger.format("%s %-5s : %s%n", time, markerName, message);
-  }
+    final void info(String message) {
+      log0(INFO, message);
+    }
 
-  private void logInfo(String message) {
-    log0(INFO, message);
-  }
+    final void info(String format, Object... args) {
+      info(
+          String.format(format, args)
+      );
+    }
 
-  private void logInfo(String format, Object... args) {
-    logInfo(
-        String.format(format, args)
-    );
-  }
+    final void error(String message) {
+      log0(ERROR, message);
+    }
 
-  private void logError(String message) {
-    log0(ERROR, message);
-  }
+    final void error(String format, Object... args) {
+      error(
+          String.format(format, args)
+      );
+    }
 
-  private void logError(String format, Object... args) {
-    logError(
-        String.format(format, args)
-    );
+    void print(String log) {
+      System.out.append(log);
+    }
+
+    private void log0(System.Logger.Level level, String message) {
+      final LocalDateTime now;
+      now = LocalDateTime.now(clock);
+
+      final String time;
+      time = dateFormat.format(now);
+
+      final String markerName;
+      markerName = level.getName();
+
+      final String log;
+      log = String.format("%s %-5s %s%n", time, markerName, message);
+
+      print(log);
+    }
+
   }
 
   private byte toError(String message, Throwable t) {
@@ -661,6 +672,22 @@ final class Way {
 
   // ##################################################################
   // # END: Logging
+  // ##################################################################
+
+  // ##################################################################
+  // # BEGIN: Testing API
+  // ##################################################################
+
+  final void object0(Object value) {
+    object0 = value;
+  }
+
+  final void logger(Logger value) {
+    logger = value;
+  }
+
+  // ##################################################################
+  // # END: Testing API
   // ##################################################################
 
 }
