@@ -1,5 +1,8 @@
 /work/
 
+# Objectos
+/.objectos/repository
+
 # Eclipse IDE
 /eclipse-bin/
 /.settings/

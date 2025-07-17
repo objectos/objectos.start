@@ -23,11 +23,13 @@ final class WayStateGen {
     final WayStateGen gen;
     gen = new WayStateGen();
 
-    gen.value("$PARSE_ARGS");
+    gen.value("$OPTIONS");
+    gen.value("$OPTIONS_PARSE");
 
     gen.line();
 
     gen.value("$INIT");
+    gen.value("$INIT_TRY");
 
     gen.line();
 

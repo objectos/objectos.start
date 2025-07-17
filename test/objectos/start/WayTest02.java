@@ -21,7 +21,7 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 @Test(description = "Builds an existing project")
-public final class WayTest01 extends WayTest00Support {
+public final class WayTest02 extends WayTest00Support {
 
   private Project project;
 

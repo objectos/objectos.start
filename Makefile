@@ -102,3 +102,23 @@ include make/java-jar.mk
 #
 
 include make/java-install.mk
+
+#
+# start@way
+#
+
+## main directory
+MAIN := main
+
+## Way.java src
+WAY_JAVA := $(MAIN)/objectos/start/Way.java
+
+## Way.java dest
+WAY_SCRIPT := Way.java
+
+.PHONY: way
+way: $(WAY_SCRIPT)
+	$(JAVA) $<
+
+$(WAY_SCRIPT): $(WAY_JAVA)
+	sed 's/package objectos.start;//' $< > $@
