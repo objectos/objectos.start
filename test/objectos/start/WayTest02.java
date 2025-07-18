@@ -17,17 +17,17 @@ package objectos.start;
 
 import static org.testng.Assert.assertEquals;
 
+import java.util.Set;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
-@Test(description = "Builds an existing project")
-public final class WayTest02 extends WayTest00Support {
+public final class WayTest02 {
 
-  private Project project;
+  private Y.Project project;
 
   @BeforeClass
   public void prepare() {
-    project = project(opts -> {
+    project = Y.project(opts -> {
       opts.addFile("main/module-info.java", """
       module objectos.test {
         exports objectos.test;
@@ -48,23 +48,25 @@ public final class WayTest02 extends WayTest00Support {
     });
   }
 
+  @Test
   public void testCase01() {
-    assertEquals(project.ls(), """
-    Way.java
-    main/module-info.java
-    main/objectos/test/Start.java
-    """);
+    assertEquals(project.ls(), Set.of(
+        "Way.java",
+        "main/module-info.java",
+        "main/objectos/test/Start.java"
+    ));
 
-    project.way();
+    project.way("--repo-remote", Y.repoRemoteArg());
 
     project.waitFor();
 
-    assertEquals(project.ls(), """
-    .objectos/repository/e5a9574a4b58c9af8cc4c84e2f3e032786c32fa4.jar
-    Way.java
-    main/module-info.java
-    main/objectos/test/Start.java
-    """);
+    assertEquals(project.ls(), Set.of(
+        ".objectos/repository/" + Y.META.sha1Start + ".jar",
+        ".objectos/repository/" + Y.META.sha1Way + ".jar",
+        "Way.java",
+        "main/module-info.java",
+        "main/objectos/test/Start.java"
+    ));
   }
 
 }

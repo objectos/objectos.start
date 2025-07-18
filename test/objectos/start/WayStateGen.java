@@ -36,7 +36,7 @@ final class WayStateGen {
     gen.value("$BOOT_DEPS");
     gen.value("$BOOT_DEPS_HAS_NEXT");
     gen.value("$BOOT_DEPS_EXISTS");
-    gen.value("$BOOT_DEPS_DOWNLOAD");
+    gen.value("$BOOT_DEPS_FETCH");
     gen.value("$BOOT_DEPS_CHECKSUM");
 
     gen.line();

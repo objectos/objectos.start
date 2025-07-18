@@ -67,7 +67,63 @@ include make/java-compile.mk
 # start@jar
 #
 
-include make/java-jar.mk
+## where we'll find the classes for our JAR file
+JAR_DIRECTORY := $(WORK)/jar
+
+## jar contents "source" (exclude Way.class and nested)
+JAR_SRC = $(shell find ${CLASS_OUTPUT} -type f ! -name 'Way*.class' -print)
+
+## jar contents "output"
+JAR_OUT = $(JAR_SRC:$(CLASS_OUTPUT)/%=$(JAR_DIRECTORY)/%)
+
+## META-INF directory
+JAR_META_INF := $(CLASS_OUTPUT)/META-INF
+
+## license 'artifact'
+JAR_LICENSE := $(JAR_META_INF)/LICENSE
+
+## jar file name
+JAR_FILE_NAME := $(ARTIFACT_ID)-$(VERSION).jar
+
+## jar file path
+JAR_FILE := $(WORK)/$(JAR_FILE_NAME)
+
+## jar command
+JARX := $(JAR)
+JARX += --create
+JARX += --file $(JAR_FILE)
+JARX += --module-version $(VERSION)
+JARX += -C $(JAR_DIRECTORY)
+JARX += .
+
+## requirements of the JAR_FILE target
+JAR_FILE_REQS := $(COMPILE_MARKER)
+JAR_FILE_REQS += $(JAR_LICENSE)
+JAR_FILE_REQS += $(JAR_OUT)
+
+#
+# jar targets
+#
+
+.PHONY: jar
+jar: $(JAR_FILE)
+
+.PHONY: jar-clean
+jar-clean:
+	rm -rf $(JAR_DIRECTORY) $(JAR_FILE)
+
+$(JAR_OUT): $(JAR_DIRECTORY)/%: $(CLASS_OUTPUT)/%
+	@mkdir --parents $(@D)
+	cp $< $@
+
+$(JAR_FILE): $(JAR_FILE_REQS)
+	$(JARX)
+
+$(JAR_META_INF):
+	mkdir --parents $@
+
+$(JAR_LICENSE): LICENSE | $(JAR_META_INF)
+	cp LICENSE $(@D)
 
 #
 # start@test-repo
@@ -75,6 +131,9 @@ include make/java-jar.mk
 
 ## Way.java src
 WAY_JAVA := $(MAIN)/objectos/start/Way.java
+
+## Y.java src
+Y_JAVA := test/objectos/start/Y.java
 
 ## test repo
 TEST_REPO := $(WORK)/test-repo
@@ -114,10 +173,10 @@ $(TEST_REPO_DEP_WAY): $(TEST_REPO_SRC_WAY)
 	
 $(TEST_REPO_MARKER): $(TEST_REPO_REQS) | $(TEST_REPO)
 	sed -i \
+		-e '/sed:SHA1_SELF/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_SELF) | cut -d' ' -f1 -z)"/' \
+		-e '/sed:SHA1_WAY/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_WAY) | cut -d' ' -f1 -z)"/' \
 		-e '/sed:VERSION/s/"[^"]*"/"$(VERSION)"/' \
-		-e '/sed:WAY_SHA1/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_WAY) | cut -d' ' -f1 -z)"/' \
-		-e '/sed:START_SHA1/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_SELF) | cut -d' ' -f1 -z)"/' \
-		$(WAY_JAVA)	
+		$(WAY_JAVA)	$(Y_JAVA)
 	touch $@
 
 #
@@ -145,6 +204,9 @@ TEST_ADD_MODULES += org.slf4j
 
 ## test --add-reads
 TEST_ADD_READS := objectos.start=org.testng
+
+## additional requirements
+TEST_RUNTIME_REQS_MORE := $(TEST_REPO_MARKER)
 
 include make/java-test.mk
 

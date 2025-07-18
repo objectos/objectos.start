@@ -15,14 +15,27 @@
  */
 package objectos.start;
 
+import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import objectos.way.App;
 import objectos.way.Io;
 import objectos.way.Note;
@@ -30,6 +43,44 @@ import objectos.way.Note;
 final class Y {
 
   private Y() {}
+
+  // ##################################################################
+  // # BEGIN: Clock
+  // ##################################################################
+
+  public static Clock clockIncMillis(int year, int month, int day) {
+    final LocalDateTime dateTime;
+    dateTime = LocalDateTime.of(year, month, day, 10, 0);
+
+    final ZonedDateTime startTime;
+    startTime = dateTime.atZone(ZoneId.systemDefault());
+
+    return new Clock() {
+      private long milis;
+
+      @Override
+      public final Instant instant() {
+        final Instant instant;
+        instant = startTime.toInstant();
+
+        return instant.plusMillis(milis++);
+      }
+
+      @Override
+      public final ZoneId getZone() {
+        return startTime.getZone();
+      }
+
+      @Override
+      public Clock withZone(ZoneId zone) {
+        throw new UnsupportedOperationException();
+      }
+    };
+  }
+
+  // ##################################################################
+  // # END: Clock
+  // ##################################################################
 
   // ##################################################################
   // # BEGIN: Next
@@ -128,6 +179,185 @@ final class Y {
   // ##################################################################
 
   // ##################################################################
+  // # BEGIN: Project
+  // ##################################################################
+
+  public static final class Project {
+
+    static final class Builder {
+
+      private final Path root = Y.nextTempDir();
+
+      private Builder() {
+        try {
+          final Path originalWay;
+          originalWay = Path.of("main", "objectos", "start", "Way.java");
+
+          final String originalContents;
+          originalContents = Files.readString(originalWay, StandardCharsets.UTF_8);
+
+          final String contents;
+          contents = originalContents.replace("package objectos.start;", "");
+
+          addFile("Way.java", contents);
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
+      }
+
+      public final void addFile(String relativePath, String contents) {
+        try {
+          final Path file;
+          file = root.resolve(relativePath);
+
+          final Path parent;
+          parent = file.getParent();
+
+          Files.createDirectories(parent);
+
+          Files.writeString(file, contents, StandardOpenOption.CREATE_NEW);
+        } catch (IOException e) {
+          throw new UncheckedIOException(e);
+        }
+      }
+
+      private Project build() {
+        return new Project(this);
+      }
+
+    }
+
+    private record Notes(
+        Note.Ref1<String> stderr,
+        Note.Ref1<String> stdout,
+        Note.Ref1<IOException> ioException
+    ) {
+
+      static Notes get() {
+        Class<?> s;
+        s = Project.class;
+
+        return new Notes(
+            Note.Ref1.create(s, "STE", Note.INFO),
+            Note.Ref1.create(s, "STO", Note.INFO),
+            Note.Ref1.create(s, "IOX", Note.ERROR)
+        );
+      }
+
+    }
+
+    private final Notes notes = Notes.get();
+
+    private final Note.Sink noteSink = Y.noteSink();
+
+    private Process process;
+
+    private final Path root;
+
+    private Project(Builder builder) {
+      this.root = builder.root;
+    }
+
+    public final Set<String> ls() {
+      try (Stream<Path> walk = Files.walk(root)) {
+        return walk
+            .filter(path -> !path.equals(root))
+            .filter(Files::isRegularFile)
+            .map(root::relativize)
+            .map(Object::toString)
+            .collect(Collectors.toUnmodifiableSet());
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
+
+    public final void waitFor() {
+      try {
+        process.waitFor();
+      } catch (InterruptedException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    public final void way(String... args) {
+      final List<String> cmd;
+      cmd = new ArrayList<>();
+
+      cmd.add("java");
+
+      cmd.add("Way.java");
+
+      for (String arg : args) {
+        cmd.add(arg);
+      }
+
+      try {
+        final ProcessBuilder builder;
+        builder = new ProcessBuilder(cmd);
+
+        builder.directory(root.toFile());
+
+        process = builder.start();
+
+        Thread.ofVirtual().start(this::stderr);
+        Thread.ofVirtual().start(this::stdout);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    private void stderr() {
+      try (BufferedReader reader = process.errorReader()) {
+        String line;
+        while ((line = reader.readLine()) != null) {
+          System.out.println(line);
+        }
+      } catch (IOException e) {
+        noteSink.send(notes.ioException, e);
+      }
+    }
+
+    private void stdout() {
+      try (BufferedReader reader = process.inputReader()) {
+        String line;
+        while ((line = reader.readLine()) != null) {
+          System.out.println(line);
+        }
+      } catch (IOException e) {
+        noteSink.send(notes.ioException, e);
+      }
+    }
+
+  }
+
+  public static Project project(Consumer<? super Project.Builder> opts) {
+    final Project.Builder builder;
+    builder = new Project.Builder();
+
+    opts.accept(builder);
+
+    return builder.build();
+  }
+
+  // ##################################################################
+  // # END: Project
+  // ##################################################################
+
+  // ##################################################################
+  // # BEGIN: Repo
+  // ##################################################################
+
+  private static final Path REPO_REMOTE = Path.of("work/test-repo/").toAbsolutePath();
+
+  public static String repoRemoteArg() {
+    return REPO_REMOTE.toString() + "/";
+  }
+
+  // ##################################################################
+  // # END: Repo
+  // ##################################################################
+
+  // ##################################################################
   // # BEGIN: ShutdownHook
   // ##################################################################
 
@@ -153,7 +383,14 @@ final class Y {
 
     private final List<String> logs = new ArrayList<>();
 
-    private WayLogger() {}
+    private WayLogger() {
+      super(clockIncMillis(2025, 1, 1));
+    }
+
+    @Override
+    public final String toString() {
+      return String.join("", logs);
+    }
 
     @Override
     final void print(String log) {
@@ -170,6 +407,77 @@ final class Y {
 
   // ##################################################################
   // # END: Way.Logger
+  // ##################################################################
+
+  // ##################################################################
+  // # BEGIN: Way.Meta
+  // ##################################################################
+
+  static final class Meta {
+
+    final String sha1Start = "2306e9030df5f0dcf89454e3ea8a2f3ea3d7a916"; /* sed:SHA1_SELF */
+
+    final String sha1Way = "66032cc22fe7d13495f530278b8fcfb99e52cf1d"; /* sed:SHA1_WAY */
+
+    final String version = "0.2.6-SNAPSHOT"; // sed:VERSION
+
+  }
+
+  public static final Meta META = new Meta();
+
+  // ##################################################################
+  // # END: Way.Meta
+  // ##################################################################
+
+  // ##################################################################
+  // # BEGIN: WayTester
+  // ##################################################################
+
+  public static final class WayTester {
+
+    private final WayLogger logger;
+
+    private final Way way;
+
+    private WayTester(WayLogger logger, Way way) {
+      this.logger = logger;
+      this.way = way;
+    }
+
+    public final void args(String... args) {
+      way.object0(args.clone());
+    }
+
+    public final void execute(byte from, byte to) {
+      way.execute(from, to);
+    }
+
+    public final String logContaining(String substring) {
+      for (String log : logger.logs) {
+        if (log.contains(substring)) {
+          return log;
+        }
+      }
+
+      throw new NoSuchElementException(substring);
+    }
+
+  }
+
+  public static WayTester wayTester() {
+    final Y.WayLogger logger;
+    logger = Y.wayLogger();
+
+    final Way way;
+    way = new Way();
+
+    way.logger(logger);
+
+    return new WayTester(logger, way);
+  }
+
+  // ##################################################################
+  // # END: WayTester
   // ##################################################################
 
 }

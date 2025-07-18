@@ -36,6 +36,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /// Bootstraps Objectos Start.
 ///
@@ -44,6 +45,16 @@ import java.util.Map;
 /// This class is not part of the Objectos Start JAR file.
 /// It is placed in the main source tree to ease its development.
 final class Way {
+
+  static final class Meta {
+
+    final String sha1Start = "2306e9030df5f0dcf89454e3ea8a2f3ea3d7a916"; /* sed:SHA1_SELF */
+
+    final String sha1Way = "66032cc22fe7d13495f530278b8fcfb99e52cf1d"; /* sed:SHA1_WAY */
+
+    final String version = "0.2.6-SNAPSHOT"; // sed:VERSION
+
+  }
 
   private byte[] buffer;
 
@@ -57,6 +68,8 @@ final class Way {
 
   private Logger logger;
 
+  private final Meta meta = new Meta();
+
   private Object object0;
 
   private Object object1;
@@ -64,8 +77,6 @@ final class Way {
   private Options options;
 
   private byte state;
-
-  private final String version = "0.2.6-SNAPSHOT"; // sed:VERSION
 
   // visible for testing
   Way() {}
@@ -96,7 +107,7 @@ final class Way {
   static final byte $BOOT_DEPS = 4;
   static final byte $BOOT_DEPS_HAS_NEXT = 5;
   static final byte $BOOT_DEPS_EXISTS = 6;
-  static final byte $BOOT_DEPS_DOWNLOAD = 7;
+  static final byte $BOOT_DEPS_FETCH = 7;
   static final byte $BOOT_DEPS_CHECKSUM = 8;
 
   static final byte $RUNNING = 9;
@@ -121,7 +132,7 @@ final class Way {
       case $BOOT_DEPS -> executeBootDeps();
       case $BOOT_DEPS_HAS_NEXT -> executeBootDepsHasNext();
       case $BOOT_DEPS_EXISTS -> executeBootDepsExists();
-      case $BOOT_DEPS_DOWNLOAD -> executeBootDepsDownload();
+      case $BOOT_DEPS_FETCH -> executeBootDepsFetch();
       case $BOOT_DEPS_CHECKSUM -> executeBootDepsChecksum();
 
       default -> throw new AssertionError("Unexpected state=" + state);
@@ -146,9 +157,7 @@ final class Way {
 
       PATH,
 
-      STRING,
-
-      URI;
+      STRING;
 
     }
 
@@ -156,12 +165,14 @@ final class Way {
 
     final String name;
 
-    Object value;
-
     // DEF = Default
     // CLI = Command Line
     // SYS = System
     String source;
+
+    Function<? super Object, ? extends Object> validator;
+
+    Object value;
 
     Option(Kind kind, String name, Object defaultValue) {
       this.kind = kind;
@@ -182,6 +193,12 @@ final class Way {
       return name.hashCode();
     }
 
+    final Option validator(Function<? super Object, ? extends Object> value) {
+      validator = value;
+
+      return this;
+    }
+
     final void parse(String source, String rawValue) {
       value = switch (kind) {
         case DURATION -> Duration.parse(rawValue);
@@ -191,9 +208,11 @@ final class Way {
         case PATH -> Path.of(rawValue);
 
         case STRING -> rawValue;
-
-        case URI -> URI.create(rawValue);
       };
+
+      if (validator != null) {
+        value = validator.apply(value);
+      }
 
       this.source = source;
     }
@@ -213,8 +232,8 @@ final class Way {
       return value(Kind.PATH);
     }
 
-    final URI uri() {
-      return value(Kind.URI);
+    final String string() {
+      return value(Kind.STRING);
     }
 
     @SuppressWarnings("unchecked")
@@ -236,7 +255,7 @@ final class Way {
     int maxLength = 0;
 
     // options
-    final Option basedir = path("--basedir", Path.of(System.getProperty("user.dir", "")));
+    final Option basedir = path("--basedir", Path.of(""));
 
     final Option bufferSize = integer("--buffer-size", 16 * 1024);
 
@@ -246,7 +265,8 @@ final class Way {
 
     final Option repoLocal = path("--repo-local", basedir.path().resolve(".objectos/repository"));
 
-    final Option repoRemote = uri("--repo-remote", URI.create("https://repo.maven.apache.org/maven2/"));
+    final Option repoRemote = string("--repo-remote", "https://repo.maven.apache.org/maven2/")
+        .validator(this::repoRemote);
 
     final Iterable<Option> values() {
       return byName.values();
@@ -264,8 +284,8 @@ final class Way {
       return opt(Option.Kind.PATH, name, value);
     }
 
-    private Option uri(String name, URI value) {
-      return opt(Option.Kind.URI, name, value);
+    private Option string(String name, String value) {
+      return opt(Option.Kind.STRING, name, value);
     }
 
     private Option opt(Option.Kind kind, String name, Object defaultValue) {
@@ -277,6 +297,31 @@ final class Way {
       maxLength = Math.max(maxLength, name.length());
 
       return option;
+    }
+
+    private Object repoRemote(Object obj) {
+      final String repoRemote;
+      repoRemote = (String) obj;
+
+      if (repoRemote.isEmpty()) {
+        throw new IllegalArgumentException("--repo-remote must not be empty");
+      }
+
+      if (repoRemote.isBlank()) {
+        throw new IllegalArgumentException("--repo-remote must not be blank");
+      }
+
+      final int length;
+      length = repoRemote.length();
+
+      final char last;
+      last = repoRemote.charAt(length - 1);
+
+      if (last != '/') {
+        throw new IllegalArgumentException("--repo-remote path must end in a '/' character, but was: " + repoRemote);
+      }
+
+      return repoRemote;
     }
 
   }
@@ -336,11 +381,11 @@ final class Way {
   // ##################################################################
 
   private byte executeInit() {
-    if (logger != null) {
+    if (logger == null) {
       logger = new Logger();
     }
 
-    logger.info("Objectos Start v%s", version);
+    logger.info("Objectos Start v%s", meta.version);
 
     final String format;
     format = "(%3s) %-" + options.maxLength + "s %s";
@@ -394,10 +439,9 @@ final class Way {
     int0 = 0;
 
     object0 = new Artifact[] {
-        new Artifact("br.com.objectos", "objectos.way", version,
-            "66032cc22fe7d13495f530278b8fcfb99e52cf1d" /* sed:WAY_SHA1 */ ),
-        new Artifact("br.com.objectos", "objectos.start", version,
-            "fc8ad53655878409696fcd3b53afa44d71a0180f" /* sed:START_SHA1 */ )
+        new Artifact("br.com.objectos", "objectos.way", meta.version, meta.sha1Way),
+
+        new Artifact("br.com.objectos", "objectos.start", meta.version, meta.sha1Start)
     };
 
     return $BOOT_DEPS_HAS_NEXT;
@@ -421,13 +465,13 @@ final class Way {
     dep = (Artifact) object1;
 
     if (!dep.exists()) {
-      return $BOOT_DEPS_DOWNLOAD;
+      return $BOOT_DEPS_FETCH;
     } else {
       return $BOOT_DEPS_CHECKSUM;
     }
   }
 
-  private byte executeBootDepsDownload() {
+  private byte executeBootDepsFetch() {
     final Artifact dep;
     dep = (Artifact) object1;
 
@@ -439,24 +483,38 @@ final class Way {
 
     logger.info("DEP %s -> %s", uri, file);
 
-    final Option httpRequestTimeout;
-    httpRequestTimeout = options.httpRequestTimout;
-
-    final HttpRequest request;
-    request = HttpRequest.newBuilder()
-        .GET()
-        .uri(uri)
-        .timeout(httpRequestTimeout.duration())
-        .build();
-
-    final BodyHandler<Path> bodyHandler;
-    bodyHandler = HttpResponse.BodyHandlers.ofFile(file);
+    final String scheme;
+    scheme = uri.getScheme();
 
     try {
-      final HttpClient client;
-      client = httpClient();
+      if (scheme != null) {
+        final Option httpRequestTimeout;
+        httpRequestTimeout = options.httpRequestTimout;
 
-      client.send(request, bodyHandler);
+        final HttpRequest request;
+        request = HttpRequest.newBuilder()
+            .GET()
+            .uri(uri)
+            .timeout(httpRequestTimeout.duration())
+            .build();
+
+        final BodyHandler<Path> bodyHandler;
+        bodyHandler = HttpResponse.BodyHandlers.ofFile(file);
+
+        final HttpClient client;
+        client = httpClient();
+
+        client.send(request, bodyHandler);
+
+      } else {
+        final String path;
+        path = uri.getPath();
+
+        final Path source;
+        source = Path.of(path);
+
+        Files.copy(source, file);
+      }
 
       return $BOOT_DEPS_CHECKSUM;
     } catch (IOException | InterruptedException e) {
@@ -536,19 +594,19 @@ final class Way {
     }
 
     final URI toURI() {
+      final Option option;
+      option = options.repoRemote;
+
+      final String repoRemote;
+      repoRemote = option.string();
+
       final String path;
       path = groupId.replace('.', '/')
           + "/" + artifactId
           + "/" + version
           + "/" + artifactId + "-" + version + ".jar";
 
-      final Option option;
-      option = options.repoRemote;
-
-      final URI repoRemote;
-      repoRemote = option.uri();
-
-      return repoRemote.resolve(path);
+      return URI.create(repoRemote + path);
     }
 
     private Path local() {
@@ -620,9 +678,17 @@ final class Way {
 
   static class Logger {
 
-    private final Clock clock = Clock.systemDefaultZone();
+    private final Clock clock;
 
     private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+
+    Logger() {
+      this(Clock.systemDefaultZone());
+    }
+
+    Logger(Clock clock) {
+      this.clock = clock;
+    }
 
     final void info(String message) {
       log0(INFO, message);
@@ -645,7 +711,7 @@ final class Way {
     }
 
     void print(String log) {
-      System.out.append(log);
+      System.out.println(log);
     }
 
     private void log0(System.Logger.Level level, String message) {
@@ -659,7 +725,7 @@ final class Way {
       markerName = level.getName();
 
       final String log;
-      log = String.format("%s %-5s %s%n", time, markerName, message);
+      log = String.format("%s %-5s %s", time, markerName, message);
 
       print(log);
     }

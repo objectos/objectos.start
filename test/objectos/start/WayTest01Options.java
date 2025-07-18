@@ -15,27 +15,25 @@
  */
 package objectos.start;
 
+import static org.testng.Assert.assertTrue;
+
 import org.testng.annotations.Test;
 
 public final class WayTest01Options {
 
   @Test
   public void repoRemote01() {
-    final Y.WayLogger logger;
-    logger = Y.wayLogger();
+    final Y.WayTester way;
+    way = Y.wayTester();
 
-    final Way way;
-    way = new Way();
-
-    way.logger(logger);
-
-    way.object0(args("--repo-remote", "work/test-repo"));
+    way.args("--repo-remote", "work/test-repo/");
 
     way.execute(Way.$OPTIONS, Way.$BOOT_DEPS);
-  }
 
-  private String[] args(String... s) {
-    return s;
+    final String log;
+    log = way.logContaining("(CLI) --repo-remote");
+
+    assertTrue(log.endsWith("work/test-repo/"));
   }
 
 }
