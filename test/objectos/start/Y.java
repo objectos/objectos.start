@@ -415,9 +415,9 @@ final class Y {
 
   static final class Meta {
 
-    final String sha1Start = "2306e9030df5f0dcf89454e3ea8a2f3ea3d7a916"; /* sed:SHA1_SELF */
+    final String sha1Start = "cc87aa7884cff282633dc15d17aad02dddc8bb75"; /* sed:SHA1_SELF */
 
-    final String sha1Way = "66032cc22fe7d13495f530278b8fcfb99e52cf1d"; /* sed:SHA1_WAY */
+    final String sha1Way = "9c0427f6e0580293a57dee9846a4ea54d4db22c6"; /* sed:SHA1_WAY */
 
     final String version = "0.2.6-SNAPSHOT"; // sed:VERSION
 

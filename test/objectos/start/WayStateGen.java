@@ -41,6 +41,10 @@ final class WayStateGen {
 
     gen.line();
 
+    gen.value("$LAYER");
+
+    gen.line();
+
     gen.value("$RUNNING");
     gen.value("$ERROR");
   }

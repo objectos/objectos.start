@@ -70,11 +70,11 @@ include make/java-compile.mk
 ## where we'll find the classes for our JAR file
 JAR_DIRECTORY := $(WORK)/jar
 
-## jar contents "source" (exclude Way.class and nested)
-JAR_SRC = $(shell find ${CLASS_OUTPUT} -type f ! -name 'Way*.class' -print)
+## the java files
+JAR_JAVA_FILES := $(shell find ${MAIN} -type f ! -name 'Way.java' -print)
 
-## jar contents "output"
-JAR_OUT = $(JAR_SRC:$(CLASS_OUTPUT)/%=$(JAR_DIRECTORY)/%)
+## class files to trigger JAR update
+JAR_CLASS_FILES = $($(JAR_JAVA_FILES):$(MAIN)/%.java=$(CLASS_OUTPUT)/%.class)
 
 ## META-INF directory
 JAR_META_INF := $(CLASS_OUTPUT)/META-INF
@@ -97,9 +97,9 @@ JARX += -C $(JAR_DIRECTORY)
 JARX += .
 
 ## requirements of the JAR_FILE target
-JAR_FILE_REQS := $(COMPILE_MARKER)
+JAR_FILE_REQS  = $(COMPILE_MARKER)
 JAR_FILE_REQS += $(JAR_LICENSE)
-JAR_FILE_REQS += $(JAR_OUT)
+JAR_FILE_REQS += $(JAR_DIRECTORY)
 
 #
 # jar targets
@@ -112,9 +112,9 @@ jar: $(JAR_FILE)
 jar-clean:
 	rm -rf $(JAR_DIRECTORY) $(JAR_FILE)
 
-$(JAR_OUT): $(JAR_DIRECTORY)/%: $(CLASS_OUTPUT)/%
-	@mkdir --parents $(@D)
-	cp $< $@
+$(JAR_DIRECTORY): $(JAR_CLASS_FILES)
+	@mkdir --parents $@
+	rsync -a --exclude='Way*.class' $(CLASS_OUTPUT)/ $(JAR_DIRECTORY)/
 
 $(JAR_FILE): $(JAR_FILE_REQS)
 	$(JARX)
@@ -224,8 +224,8 @@ include make/java-install.mk
 WAY_SCRIPT := Way.java
 
 .PHONY: way
-way: $(WAY_SCRIPT)
-	$(JAVA) $<
+way: $(WAY_SCRIPT) $(INSTALL)
+	$(JAVA) $< --repo-remote $(LOCAL_REPO)/
 
 $(WAY_SCRIPT): $(WAY_JAVA)
 	sed 's/package objectos.start;//' $< > $@

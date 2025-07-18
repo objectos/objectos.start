@@ -20,6 +20,10 @@ import static java.lang.System.Logger.Level.INFO;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -36,6 +40,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 
 /// Bootstraps Objectos Start.
@@ -48,9 +53,9 @@ final class Way {
 
   static final class Meta {
 
-    final String sha1Start = "2306e9030df5f0dcf89454e3ea8a2f3ea3d7a916"; /* sed:SHA1_SELF */
+    final String sha1Start = "cc87aa7884cff282633dc15d17aad02dddc8bb75"; /* sed:SHA1_SELF */
 
-    final String sha1Way = "66032cc22fe7d13495f530278b8fcfb99e52cf1d"; /* sed:SHA1_WAY */
+    final String sha1Way = "9c0427f6e0580293a57dee9846a4ea54d4db22c6"; /* sed:SHA1_WAY */
 
     final String version = "0.2.6-SNAPSHOT"; // sed:VERSION
 
@@ -110,8 +115,10 @@ final class Way {
   static final byte $BOOT_DEPS_FETCH = 7;
   static final byte $BOOT_DEPS_CHECKSUM = 8;
 
-  static final byte $RUNNING = 9;
-  static final byte $ERROR = 10;
+  static final byte $LAYER = 9;
+
+  static final byte $RUNNING = 10;
+  static final byte $ERROR = 11;
 
   final void execute(byte from, byte to) {
     state = from;
@@ -134,6 +141,8 @@ final class Way {
       case $BOOT_DEPS_EXISTS -> executeBootDepsExists();
       case $BOOT_DEPS_FETCH -> executeBootDepsFetch();
       case $BOOT_DEPS_CHECKSUM -> executeBootDepsChecksum();
+
+      case $LAYER -> executeLayer();
 
       default -> throw new AssertionError("Unexpected state=" + state);
     };
@@ -456,7 +465,7 @@ final class Way {
 
       return $BOOT_DEPS_EXISTS;
     } else {
-      return $RUNNING;
+      return $LAYER;
     }
   }
 
@@ -565,6 +574,71 @@ final class Way {
 
   // ##################################################################
   // # END: Boot Deps
+  // ##################################################################
+
+  // ##################################################################
+  // # BEGIN: Module Layer
+  // ##################################################################
+
+  private byte executeLayer() {
+    final Path location;
+    location = options.repoLocal.path();
+
+    final ModuleFinder finder;
+    finder = ModuleFinder.of(location);
+
+    final ModuleFinder afterFinder;
+    afterFinder = ModuleFinder.of();
+
+    final Set<String> roots;
+    roots = Set.of("objectos.start");
+
+    final ModuleLayer boot;
+    boot = ModuleLayer.boot();
+
+    final Configuration bootConfig;
+    bootConfig = boot.configuration();
+
+    final Configuration configuration;
+    configuration = bootConfig.resolve(finder, afterFinder, roots);
+
+    final ClassLoader systemClassLoader;
+    systemClassLoader = ClassLoader.getSystemClassLoader();
+
+    final ModuleLayer layer;
+    layer = boot.defineModulesWithOneLoader(configuration, systemClassLoader);
+
+    final ClassLoader loader;
+    loader = layer.findLoader("objectos.start");
+
+    try {
+      final Class<?> startClass;
+      startClass = loader.loadClass("objectos.start.StartProd");
+
+      final Method mainMethod;
+      mainMethod = startClass.getMethod("main", String[].class);
+
+      final Object args;
+      args = new String[0];
+
+      mainMethod.invoke(null, args);
+
+      return $RUNNING;
+    } catch (ClassNotFoundException e) {
+      return toError("Failed to load main class", e);
+    } catch (NoSuchMethodException e) {
+      return toError("Failed to reflect main method", e);
+    } catch (SecurityException e) {
+      return toError("Failed to reflect main method", e);
+    } catch (IllegalAccessException e) {
+      return toError("Failed to invoke main method", e);
+    } catch (InvocationTargetException e) {
+      return toError("Failed to invoke main method", e);
+    }
+  }
+
+  // ##################################################################
+  // # END: Module Layer
   // ##################################################################
 
   // ##################################################################

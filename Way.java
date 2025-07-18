@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023-2025 Objectos Software LTDA.
+ * Copyright (C) 2025 Objectos Software LTDA.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,10 @@ import static java.lang.System.Logger.Level.INFO;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.PrintStream;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -37,6 +40,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 /// Bootstraps Objectos Start.
 ///
@@ -46,11 +51,17 @@ import java.util.Map;
 /// It is placed in the main source tree to ease its development.
 final class Way {
 
+  static final class Meta {
+
+    final String sha1Start = "755f412c63a32bd7508e6f62db92afd8b0b9aab7"; /* sed:SHA1_SELF */
+
+    final String sha1Way = "9c0427f6e0580293a57dee9846a4ea54d4db22c6"; /* sed:SHA1_WAY */
+
+    final String version = "0.2.6-SNAPSHOT"; // sed:VERSION
+
+  }
+
   private byte[] buffer;
-
-  private final Clock clock = Clock.systemDefaultZone();
-
-  private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   private MessageDigest digest;
 
@@ -60,7 +71,9 @@ final class Way {
 
   private int int0;
 
-  private PrintStream logger;
+  private Logger logger;
+
+  private final Meta meta = new Meta();
 
   private Object object0;
 
@@ -70,21 +83,20 @@ final class Way {
 
   private byte state;
 
-  private final String version;
-
-  private final String waySha1;
-
-  private Way(String version, String waySha1) {
-    this.version = version;
-
-    this.waySha1 = waySha1;
-  }
+  // visible for testing
+  Way() {}
 
   public static void main(String[] args) {
     final Way way;
-    way = new Way("0.2.5", "e5a9574a4b58c9af8cc4c84e2f3e032786c32fa4");
+    way = new Way();
 
     way.start(args);
+  }
+
+  private void start(String[] args) {
+    object0 = args;
+
+    execute($OPTIONS, $RUNNING);
   }
 
   // ##################################################################
@@ -100,24 +112,24 @@ final class Way {
   static final byte $BOOT_DEPS = 4;
   static final byte $BOOT_DEPS_HAS_NEXT = 5;
   static final byte $BOOT_DEPS_EXISTS = 6;
-  static final byte $BOOT_DEPS_DOWNLOAD = 7;
+  static final byte $BOOT_DEPS_FETCH = 7;
   static final byte $BOOT_DEPS_CHECKSUM = 8;
 
-  static final byte $RUNNING = 9;
-  static final byte $ERROR = 10;
+  static final byte $LAYER = 9;
 
-  private void start(String[] args) {
-    object0 = args;
+  static final byte $RUNNING = 10;
+  static final byte $ERROR = 11;
 
-    state = $OPTIONS;
+  final void execute(byte from, byte to) {
+    state = from;
 
-    while (state < $RUNNING) {
-      state = execute(state);
+    while (state < to) {
+      execute();
     }
   }
 
-  final byte execute(byte state) {
-    return switch (state) {
+  private void execute() {
+    state = switch (state) {
       case $OPTIONS -> executeOptions();
       case $OPTIONS_PARSE -> executeOptionsParse();
 
@@ -127,8 +139,10 @@ final class Way {
       case $BOOT_DEPS -> executeBootDeps();
       case $BOOT_DEPS_HAS_NEXT -> executeBootDepsHasNext();
       case $BOOT_DEPS_EXISTS -> executeBootDepsExists();
-      case $BOOT_DEPS_DOWNLOAD -> executeBootDepsDownload();
+      case $BOOT_DEPS_FETCH -> executeBootDepsFetch();
       case $BOOT_DEPS_CHECKSUM -> executeBootDepsChecksum();
+
+      case $LAYER -> executeLayer();
 
       default -> throw new AssertionError("Unexpected state=" + state);
     };
@@ -152,30 +166,29 @@ final class Way {
 
       PATH,
 
-      STRING,
+      STRING;
 
-      URI;
-
-    }
-
-    enum Source {
-      COMMAND_LINE,
-
-      DEFAULT;
     }
 
     final Kind kind;
+
     final String name;
 
+    // DEF = Default
+    // CLI = Command Line
+    // SYS = System
+    String source;
+
+    Function<? super Object, ? extends Object> validator;
+
     Object value;
-    Source source;
 
     Option(Kind kind, String name, Object defaultValue) {
       this.kind = kind;
       this.name = name;
       this.value = defaultValue;
 
-      source = Source.DEFAULT;
+      source = "DEF";
     }
 
     @Override
@@ -189,14 +202,26 @@ final class Way {
       return name.hashCode();
     }
 
-    final void parse(Source source, String rawValue) {
+    final Option validator(Function<? super Object, ? extends Object> value) {
+      validator = value;
+
+      return this;
+    }
+
+    final void parse(String source, String rawValue) {
       value = switch (kind) {
         case DURATION -> Duration.parse(rawValue);
+
         case INTEGER -> Integer.valueOf(rawValue);
+
         case PATH -> Path.of(rawValue);
+
         case STRING -> rawValue;
-        case URI -> URI.create(rawValue);
       };
+
+      if (validator != null) {
+        value = validator.apply(value);
+      }
 
       this.source = source;
     }
@@ -216,8 +241,8 @@ final class Way {
       return value(Kind.PATH);
     }
 
-    final URI uri() {
-      return value(Kind.URI);
+    final String string() {
+      return value(Kind.STRING);
     }
 
     @SuppressWarnings("unchecked")
@@ -234,10 +259,12 @@ final class Way {
   // ad-hoc enum so instances can be GC'ed after use.
   private class Options {
 
+    // these must come first
     final Map<String, Option> byName = new LinkedHashMap<>();
     int maxLength = 0;
 
-    final Option basedir = path("--basedir", Path.of(System.getProperty("user.dir", "")));
+    // options
+    final Option basedir = path("--basedir", Path.of(""));
 
     final Option bufferSize = integer("--buffer-size", 16 * 1024);
 
@@ -247,7 +274,8 @@ final class Way {
 
     final Option repoLocal = path("--repo-local", basedir.path().resolve(".objectos/repository"));
 
-    final Option repoRemote = uri("--repo-remote", URI.create("https://repo.maven.apache.org/maven2/"));
+    final Option repoRemote = string("--repo-remote", "https://repo.maven.apache.org/maven2/")
+        .validator(this::repoRemote);
 
     final Iterable<Option> values() {
       return byName.values();
@@ -265,8 +293,8 @@ final class Way {
       return opt(Option.Kind.PATH, name, value);
     }
 
-    private Option uri(String name, URI value) {
-      return opt(Option.Kind.URI, name, value);
+    private Option string(String name, String value) {
+      return opt(Option.Kind.STRING, name, value);
     }
 
     private Option opt(Option.Kind kind, String name, Object defaultValue) {
@@ -278,6 +306,31 @@ final class Way {
       maxLength = Math.max(maxLength, name.length());
 
       return option;
+    }
+
+    private Object repoRemote(Object obj) {
+      final String repoRemote;
+      repoRemote = (String) obj;
+
+      if (repoRemote.isEmpty()) {
+        throw new IllegalArgumentException("--repo-remote must not be empty");
+      }
+
+      if (repoRemote.isBlank()) {
+        throw new IllegalArgumentException("--repo-remote must not be blank");
+      }
+
+      final int length;
+      length = repoRemote.length();
+
+      final char last;
+      last = repoRemote.charAt(length - 1);
+
+      if (last != '/') {
+        throw new IllegalArgumentException("--repo-remote path must end in a '/' character, but was: " + repoRemote);
+      }
+
+      return repoRemote;
     }
 
   }
@@ -320,7 +373,7 @@ final class Way {
       final String rawValue;
       rawValue = args[int0++];
 
-      option.parse(Option.Source.COMMAND_LINE, rawValue);
+      option.parse("CLI", rawValue);
 
       return $OPTIONS_PARSE;
     } catch (RuntimeException parseException) {
@@ -337,17 +390,17 @@ final class Way {
   // ##################################################################
 
   private byte executeInit() {
-    logger = System.out;
+    if (logger == null) {
+      logger = new Logger();
+    }
 
-    logInfo("Objectos Start v%s", version);
+    logger.info("Objectos Start v%s", meta.version);
 
     final String format;
-    format = "%-" + options.maxLength + "s : %s [%s]";
-
-    System.out.println(format);
+    format = "(%3s) %-" + options.maxLength + "s %s";
 
     for (Option option : options.values()) {
-      logInfo(format, option.name, option.value, option.source);
+      logger.info(format, option.source, option.name, option.value);
     }
 
     return $INIT_TRY;
@@ -371,7 +424,6 @@ final class Way {
     }
 
     // repoLocal
-
     try {
       final Option repoLocal;
       repoLocal = options.repoLocal;
@@ -396,7 +448,9 @@ final class Way {
     int0 = 0;
 
     object0 = new Artifact[] {
-        new Artifact("br.com.objectos", "objectos.way", version, waySha1)
+        new Artifact("br.com.objectos", "objectos.way", meta.version, meta.sha1Way),
+
+        new Artifact("br.com.objectos", "objectos.start", meta.version, meta.sha1Start)
     };
 
     return $BOOT_DEPS_HAS_NEXT;
@@ -411,7 +465,7 @@ final class Way {
 
       return $BOOT_DEPS_EXISTS;
     } else {
-      return $RUNNING;
+      return $LAYER;
     }
   }
 
@@ -420,13 +474,13 @@ final class Way {
     dep = (Artifact) object1;
 
     if (!dep.exists()) {
-      return $BOOT_DEPS_DOWNLOAD;
+      return $BOOT_DEPS_FETCH;
     } else {
       return $BOOT_DEPS_CHECKSUM;
     }
   }
 
-  private byte executeBootDepsDownload() {
+  private byte executeBootDepsFetch() {
     final Artifact dep;
     dep = (Artifact) object1;
 
@@ -436,26 +490,40 @@ final class Way {
     final Path file;
     file = dep.local();
 
-    logInfo("DEP %s -> %s", uri, file);
+    logger.info("DEP %s -> %s", uri, file);
 
-    final Option httpRequestTimeout;
-    httpRequestTimeout = options.httpRequestTimout;
-
-    final HttpRequest request;
-    request = HttpRequest.newBuilder()
-        .GET()
-        .uri(uri)
-        .timeout(httpRequestTimeout.duration())
-        .build();
-
-    final BodyHandler<Path> bodyHandler;
-    bodyHandler = HttpResponse.BodyHandlers.ofFile(file);
+    final String scheme;
+    scheme = uri.getScheme();
 
     try {
-      final HttpClient client;
-      client = httpClient();
+      if (scheme != null) {
+        final Option httpRequestTimeout;
+        httpRequestTimeout = options.httpRequestTimout;
 
-      client.send(request, bodyHandler);
+        final HttpRequest request;
+        request = HttpRequest.newBuilder()
+            .GET()
+            .uri(uri)
+            .timeout(httpRequestTimeout.duration())
+            .build();
+
+        final BodyHandler<Path> bodyHandler;
+        bodyHandler = HttpResponse.BodyHandlers.ofFile(file);
+
+        final HttpClient client;
+        client = httpClient();
+
+        client.send(request, bodyHandler);
+
+      } else {
+        final String path;
+        path = uri.getPath();
+
+        final Path source;
+        source = Path.of(path);
+
+        Files.copy(source, file);
+      }
 
       return $BOOT_DEPS_CHECKSUM;
     } catch (IOException | InterruptedException e) {
@@ -494,18 +562,83 @@ final class Way {
     sha1 = hexFormat.formatHex(sha1Bytes);
 
     if (!sha1.equals(dep.sha1)) {
-      logError("Checksum mismatch for %s: got %s", file, sha1);
+      logger.error("Checksum mismatch for %s: got %s", file, sha1);
 
       return $ERROR;
     }
 
-    logInfo("CHK %s", file);
+    logger.info("CHK %s", file);
 
     return $BOOT_DEPS_HAS_NEXT;
   }
 
   // ##################################################################
   // # END: Boot Deps
+  // ##################################################################
+
+  // ##################################################################
+  // # BEGIN: Module Layer
+  // ##################################################################
+
+  private byte executeLayer() {
+    final Path location;
+    location = options.repoLocal.path();
+
+    final ModuleFinder finder;
+    finder = ModuleFinder.of(location);
+
+    final ModuleFinder afterFinder;
+    afterFinder = ModuleFinder.of();
+
+    final Set<String> roots;
+    roots = Set.of("objectos.start");
+
+    final ModuleLayer boot;
+    boot = ModuleLayer.boot();
+
+    final Configuration bootConfig;
+    bootConfig = boot.configuration();
+
+    final Configuration configuration;
+    configuration = bootConfig.resolve(finder, afterFinder, roots);
+
+    final ClassLoader systemClassLoader;
+    systemClassLoader = ClassLoader.getSystemClassLoader();
+
+    final ModuleLayer layer;
+    layer = boot.defineModulesWithOneLoader(configuration, systemClassLoader);
+
+    final ClassLoader loader;
+    loader = layer.findLoader("objectos.start");
+
+    try {
+      final Class<?> startClass;
+      startClass = loader.loadClass("objectos.start.StartProd");
+
+      final Method mainMethod;
+      mainMethod = startClass.getMethod("main", String[].class);
+
+      final Object args;
+      args = new String[0];
+
+      mainMethod.invoke(null, args);
+
+      return $RUNNING;
+    } catch (ClassNotFoundException e) {
+      return toError("Failed to load main class", e);
+    } catch (NoSuchMethodException e) {
+      return toError("Failed to reflect main method", e);
+    } catch (SecurityException e) {
+      return toError("Failed to reflect main method", e);
+    } catch (IllegalAccessException e) {
+      return toError("Failed to invoke main method", e);
+    } catch (InvocationTargetException e) {
+      return toError("Failed to invoke main method", e);
+    }
+  }
+
+  // ##################################################################
+  // # END: Module Layer
   // ##################################################################
 
   // ##################################################################
@@ -535,19 +668,19 @@ final class Way {
     }
 
     final URI toURI() {
+      final Option option;
+      option = options.repoRemote;
+
+      final String repoRemote;
+      repoRemote = option.string();
+
       final String path;
       path = groupId.replace('.', '/')
           + "/" + artifactId
           + "/" + version
           + "/" + artifactId + "-" + version + ".jar";
 
-      final Option option;
-      option = options.repoRemote;
-
-      final URI repoRemote;
-      repoRemote = option.uri();
-
-      return repoRemote.resolve(path);
+      return URI.create(repoRemote + path);
     }
 
     private Path local() {
@@ -617,37 +750,60 @@ final class Way {
   // # BEGIN: Logging
   // ##################################################################
 
-  private void log0(System.Logger.Level level, String message) {
-    final LocalDateTime now;
-    now = LocalDateTime.now(clock);
+  static class Logger {
 
-    final String time;
-    time = dateFormat.format(now);
+    private final Clock clock;
 
-    final String markerName;
-    markerName = level.getName();
+    private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
-    logger.format("%s %-5s : %s%n", time, markerName, message);
-  }
+    Logger() {
+      this(Clock.systemDefaultZone());
+    }
 
-  private void logInfo(String message) {
-    log0(INFO, message);
-  }
+    Logger(Clock clock) {
+      this.clock = clock;
+    }
 
-  private void logInfo(String format, Object... args) {
-    logInfo(
-        String.format(format, args)
-    );
-  }
+    final void info(String message) {
+      log0(INFO, message);
+    }
 
-  private void logError(String message) {
-    log0(ERROR, message);
-  }
+    final void info(String format, Object... args) {
+      info(
+          String.format(format, args)
+      );
+    }
 
-  private void logError(String format, Object... args) {
-    logError(
-        String.format(format, args)
-    );
+    final void error(String message) {
+      log0(ERROR, message);
+    }
+
+    final void error(String format, Object... args) {
+      error(
+          String.format(format, args)
+      );
+    }
+
+    void print(String log) {
+      System.out.println(log);
+    }
+
+    private void log0(System.Logger.Level level, String message) {
+      final LocalDateTime now;
+      now = LocalDateTime.now(clock);
+
+      final String time;
+      time = dateFormat.format(now);
+
+      final String markerName;
+      markerName = level.getName();
+
+      final String log;
+      log = String.format("%s %-5s %s", time, markerName, message);
+
+      print(log);
+    }
+
   }
 
   private byte toError(String message, Throwable t) {
@@ -656,6 +812,22 @@ final class Way {
 
   // ##################################################################
   // # END: Logging
+  // ##################################################################
+
+  // ##################################################################
+  // # BEGIN: Testing API
+  // ##################################################################
+
+  final void object0(Object value) {
+    object0 = value;
+  }
+
+  final void logger(Logger value) {
+    logger = value;
+  }
+
+  // ##################################################################
+  // # END: Testing API
   // ##################################################################
 
 }
