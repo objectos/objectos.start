@@ -379,24 +379,39 @@ final class Y {
   // # BEGIN: Way.Logger
   // ##################################################################
 
-  public static final class WayLogger extends Way.Logger {
+  public static final class WayLogger implements Appendable {
 
     private final List<String> logs = new ArrayList<>();
 
-    private WayLogger() {
-      super(clockIncMillis(2025, 1, 1));
+    private WayLogger() {}
+
+    @Override
+    public final Appendable append(CharSequence csq) {
+      System.out.append(csq);
+
+      // strip out trailing newline
+      String msg = csq.toString();
+
+      msg = msg.substring(0, msg.length() - 1);
+
+      logs.add(msg);
+
+      return this;
+    }
+
+    @Override
+    public final Appendable append(CharSequence csq, int start, int end) throws IOException {
+      throw new UnsupportedOperationException("Implement me");
+    }
+
+    @Override
+    public final Appendable append(char c) throws IOException {
+      throw new UnsupportedOperationException("Implement me");
     }
 
     @Override
     public final String toString() {
       return String.join("", logs);
-    }
-
-    @Override
-    final void print(String log) {
-      super.print(log);
-
-      logs.add(log);
     }
 
   }
@@ -419,7 +434,7 @@ final class Y {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "777435a835fefe262ec05a5e99b92b6cfde2d8b9"; // sed:START_SHA1
+    final String startSha1 = "ae3c3106e2a601752e4e7a0b2c7dc4f34f545a1a"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
@@ -476,6 +491,8 @@ final class Y {
 
     final Way way;
     way = new Way();
+
+    way.clock(clockIncMillis(2025, 1, 1));
 
     way.logger(logger);
 

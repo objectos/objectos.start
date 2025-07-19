@@ -203,6 +203,9 @@ $(TEST_REPO_MARKER): $(TEST_REPO_REQS) | $(TEST_REPO)
 ## test compile deps
 TEST_COMPILE_DEPS := $(TESTNG)
 
+## additional requirements
+TEST_COMPILE_REQS_MORE := $(TEST_REPO_MARKER)
+
 include make/java-test-compile.mk
 
 #
@@ -223,9 +226,6 @@ TEST_ADD_MODULES += com.h2database
 ## test --add-reads
 TEST_ADD_READS := objectos.start=org.testng
 
-## additional requirements
-TEST_RUNTIME_REQS_MORE := $(TEST_REPO_MARKER)
-
 include make/java-test.mk
 
 #
@@ -242,8 +242,6 @@ include make/java-install.mk
 WAY_SCRIPT := Way.java
 
 .PHONY: way
-way: $(INSTALL) $(WAY_SCRIPT)
+way: $(INSTALL) $(TEST_REPO_MARKER)
+	sed 's/package objectos.start;//' $(WAY_JAVA) > $(WAY_SCRIPT)
 	$(JAVA) $(WAY_SCRIPT) --repo-remote $(LOCAL_REPO)/
-
-$(WAY_SCRIPT): $(WAY_JAVA) $(TEST_REPO_MARKER)
-	sed 's/package objectos.start;//' $< > $@
