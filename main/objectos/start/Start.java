@@ -15,13 +15,30 @@
  */
 package objectos.start;
 
+import java.util.Map;
+import java.util.Objects;
 import objectos.way.App;
 import objectos.way.Note;
 
-abstract class Start extends App.Bootstrap {
+public final class Start {
 
-  @Override
-  protected final void bootstrap() {
+  @SuppressWarnings("unused")
+  private final Map<String, Object> options;
+
+  Start(Map<String, Object> options) {
+    this.options = options;
+  }
+
+  public static void boot(Map<String, Object> options) {
+    Objects.requireNonNull(options, "options == null");
+
+    final Start start;
+    start = new Start(options);
+
+    start.bootstrap();
+  }
+
+  final void bootstrap() {
     // Mark bootstrap start time
     final long startTime;
     startTime = System.currentTimeMillis();
@@ -35,7 +52,7 @@ abstract class Start extends App.Bootstrap {
 
     // Note the bootstrap total time
     final Note.Long1 totalTimeNote;
-    totalTimeNote = Note.Long1.create(getClass(), "Total time [ms]", Note.INFO);
+    totalTimeNote = Note.Long1.create(getClass(), "TMS", Note.INFO);
 
     final long totalTime;
     totalTime = System.currentTimeMillis() - startTime;
@@ -52,7 +69,7 @@ abstract class Start extends App.Bootstrap {
 
     // bootstrap start event
     final Note.Ref0 startNote;
-    startNote = Note.Ref0.create(getClass(), "Start", Note.INFO);
+    startNote = Note.Ref0.create(getClass(), "STA", Note.INFO);
 
     noteSink.send(startNote);
 

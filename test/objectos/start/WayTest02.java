@@ -61,8 +61,9 @@ public final class WayTest02 {
     project.waitFor();
 
     assertEquals(project.ls(), Set.of(
-        ".objectos/repository/" + Y.META.sha1Start + ".jar",
-        ".objectos/repository/" + Y.META.sha1Way + ".jar",
+        ".objectos/boot/" + Y.META.h2Sha1 + ".jar",
+        ".objectos/boot/" + Y.META.startSha1 + ".jar",
+        ".objectos/boot/" + Y.META.waySha1 + ".jar",
         "Way.java",
         "main/module-info.java",
         "main/objectos/test/Start.java"

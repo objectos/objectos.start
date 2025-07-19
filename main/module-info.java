@@ -19,6 +19,7 @@
 module objectos.start {
   exports objectos.start;
 
+  requires com.h2database;
   requires java.net.http;
   requires objectos.way;
 }

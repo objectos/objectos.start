@@ -42,6 +42,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /// Bootstraps Objectos Start.
 ///
@@ -53,11 +54,17 @@ final class Way {
 
   static final class Meta {
 
-    final String sha1Start = "755f412c63a32bd7508e6f62db92afd8b0b9aab7"; /* sed:SHA1_SELF */
+    final String h2Sha1 = "4fcc05d966ccdb2812ae8b9a718f69226c0cf4e2"; // sed:H2_SHA1
 
-    final String sha1Way = "9c0427f6e0580293a57dee9846a4ea54d4db22c6"; /* sed:SHA1_WAY */
+    final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String version = "0.2.6-SNAPSHOT"; // sed:VERSION
+    final String startSha1 = "777435a835fefe262ec05a5e99b92b6cfde2d8b9"; // sed:START_SHA1
+
+    final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
+
+    final String waySha1 = "fa1df73b60d86b3bac38a41c070e5b30ff02b132"; // sed:WAY_SHA1
+
+    final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 
   }
 
@@ -272,7 +279,7 @@ final class Way {
 
     final Option httpRequestTimout = duration("--http-request-timeout", Duration.ofMinutes(1));
 
-    final Option repoLocal = path("--repo-local", basedir.path().resolve(".objectos/repository"));
+    final Option repoBoot = path("--repo-boot", basedir.path().resolve(".objectos/boot"));
 
     final Option repoRemote = string("--repo-remote", "https://repo.maven.apache.org/maven2/")
         .validator(this::repoRemote);
@@ -331,6 +338,12 @@ final class Way {
       }
 
       return repoRemote;
+    }
+
+    final Map<String, Object> asMap() {
+      return byName.entrySet()
+          .stream()
+          .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().value));
     }
 
   }
@@ -394,7 +407,7 @@ final class Way {
       logger = new Logger();
     }
 
-    logger.info("Objectos Start v%s", meta.version);
+    logger.info("Objectos Start v%s", meta.startVersion);
 
     final String format;
     format = "(%3s) %-" + options.maxLength + "s %s";
@@ -423,12 +436,12 @@ final class Way {
       return toError("Failed obtain the SHA-1 digest instance", e);
     }
 
-    // repoLocal
+    // repoBoot
     try {
-      final Option repoLocal;
-      repoLocal = options.repoLocal;
+      final Option repoBoot;
+      repoBoot = options.repoBoot;
 
-      ensureDirectory(repoLocal.path());
+      ensureDirectory(repoBoot.path());
     } catch (IOException e) {
       return toError("Failed to create local repository directory", e);
     }
@@ -448,9 +461,11 @@ final class Way {
     int0 = 0;
 
     object0 = new Artifact[] {
-        new Artifact("br.com.objectos", "objectos.way", meta.version, meta.sha1Way),
+        new Artifact("br.com.objectos", "objectos.start", meta.startVersion, meta.startSha1),
 
-        new Artifact("br.com.objectos", "objectos.start", meta.version, meta.sha1Start)
+        new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1),
+
+        new Artifact("com.h2database", "h2", meta.h2Version, meta.h2Sha1),
     };
 
     return $BOOT_DEPS_HAS_NEXT;
@@ -581,8 +596,16 @@ final class Way {
   // ##################################################################
 
   private byte executeLayer() {
+    // boot layer
+    final ModuleLayer boot;
+    boot = ModuleLayer.boot();
+
+    final Configuration bootConfig;
+    bootConfig = boot.configuration();
+
+    // our module finder
     final Path location;
-    location = options.repoLocal.path();
+    location = options.repoBoot.path();
 
     final ModuleFinder finder;
     finder = ModuleFinder.of(location);
@@ -590,38 +613,33 @@ final class Way {
     final ModuleFinder afterFinder;
     afterFinder = ModuleFinder.of();
 
+    // only objectos.start
     final Set<String> roots;
     roots = Set.of("objectos.start");
 
-    final ModuleLayer boot;
-    boot = ModuleLayer.boot();
-
-    final Configuration bootConfig;
-    bootConfig = boot.configuration();
-
+    // our config
     final Configuration configuration;
     configuration = bootConfig.resolve(finder, afterFinder, roots);
 
+    // our layer
     final ClassLoader systemClassLoader;
     systemClassLoader = ClassLoader.getSystemClassLoader();
 
     final ModuleLayer layer;
     layer = boot.defineModulesWithOneLoader(configuration, systemClassLoader);
 
+    // our loader
     final ClassLoader loader;
     loader = layer.findLoader("objectos.start");
 
     try {
       final Class<?> startClass;
-      startClass = loader.loadClass("objectos.start.StartProd");
+      startClass = loader.loadClass("objectos.start.Start");
 
-      final Method mainMethod;
-      mainMethod = startClass.getMethod("main", String[].class);
+      final Method bootMethod;
+      bootMethod = startClass.getMethod("boot", Map.class);
 
-      final Object args;
-      args = new String[0];
-
-      mainMethod.invoke(null, args);
+      bootMethod.invoke(null, options.asMap());
 
       return $RUNNING;
     } catch (ClassNotFoundException e) {
@@ -686,7 +704,7 @@ final class Way {
     private Path local() {
       if (local == null) {
         final Option option;
-        option = options.repoLocal;
+        option = options.repoBoot;
 
         final Path repoLocal;
         repoLocal = option.path();

@@ -415,11 +415,17 @@ final class Y {
 
   static final class Meta {
 
-    final String sha1Start = "cc87aa7884cff282633dc15d17aad02dddc8bb75"; /* sed:SHA1_SELF */
+    final String h2Sha1 = "4fcc05d966ccdb2812ae8b9a718f69226c0cf4e2"; // sed:H2_SHA1
 
-    final String sha1Way = "9c0427f6e0580293a57dee9846a4ea54d4db22c6"; /* sed:SHA1_WAY */
+    final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String version = "0.2.6-SNAPSHOT"; // sed:VERSION
+    final String startSha1 = "777435a835fefe262ec05a5e99b92b6cfde2d8b9"; // sed:START_SHA1
+
+    final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
+
+    final String waySha1 = "fa1df73b60d86b3bac38a41c070e5b30ff02b132"; // sed:WAY_SHA1
+
+    final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 
   }
 

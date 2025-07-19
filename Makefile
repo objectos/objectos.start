@@ -21,8 +21,12 @@
 ## Coordinates
 GROUP_ID := br.com.objectos
 ARTIFACT_ID := objectos.start
-VERSION := 0.2.6-SNAPSHOT
+VERSION := 0.1.0-SNAPSHOT
 MODULE := $(ARTIFACT_ID)
+
+## Boot deps versions
+H2_VERSION := 2.3.232
+WAY_VERSION := 0.2.6-SNAPSHOT
 
 ## javac --release option
 JAVA_RELEASE := 21
@@ -31,8 +35,8 @@ JAVA_RELEASE := 21
 REMOTE_REPOS := https://repo.maven.apache.org/maven2
 
 ## Dependencies
-H2 := com.h2database/h2/2.3.232
-WAY := $(GROUP_ID)/objectos.way/$(VERSION)
+H2 := com.h2database/h2/$(H2_VERSION)
+WAY := $(GROUP_ID)/objectos.way/$(WAY_VERSION)
 SLF4J_NOP := org.slf4j/slf4j-nop/2.0.17
 TESTNG := org.testng/testng/7.11.0
 
@@ -60,6 +64,7 @@ include make/common-clean.mk
 
 ## Compile deps
 COMPILE_DEPS := $(WAY)
+COMPILE_DEPS += $(H2)
 
 include make/java-compile.mk
 
@@ -138,17 +143,22 @@ Y_JAVA := test/objectos/start/Y.java
 ## test repo
 TEST_REPO := $(WORK)/test-repo
 
-## test repo dep (self)
-TEST_REPO_DEP_SELF := $(TEST_REPO)/$(call mk-resolved-jar,$(GROUP_ID)/$(ARTIFACT_ID)/$(VERSION))
+## test repo dep (start)
+TEST_REPO_DEP_START := $(TEST_REPO)/$(call mk-resolved-jar,$(GROUP_ID)/$(ARTIFACT_ID)/$(VERSION))
 
 ## test repo dep (way)
 TEST_REPO_DEP_WAY := $(TEST_REPO)/$(call mk-resolved-jar,$(WAY))
 TEST_REPO_SRC_WAY := $(call gav-to-local,$(WAY))
 
+## test repo dep (h2)
+TEST_REPO_DEP_H2 := $(TEST_REPO)/$(call mk-resolved-jar,$(H2))
+TEST_REPO_SRC_H2 := $(call gav-to-local,$(H2))
+
 ## test repo requirements
 TEST_REPO_REQS := $(WAY_JAVA)
-TEST_REPO_REQS += $(TEST_REPO_DEP_SELF)
+TEST_REPO_REQS += $(TEST_REPO_DEP_START)
 TEST_REPO_REQS += $(TEST_REPO_DEP_WAY)
+TEST_REPO_REQS += $(TEST_REPO_DEP_H2)
 
 ## test repo marker
 TEST_REPO_MARKER := $(WORK)/test-repo-marker
@@ -163,19 +173,26 @@ test-repo-clean:
 $(TEST_REPO):
 	mkdir --parents $@
 	
-$(TEST_REPO_DEP_SELF): $(JAR_FILE)
+$(TEST_REPO_DEP_START): $(JAR_FILE)
 	mkdir --parents $(@D)
 	cp $< $@
 
 $(TEST_REPO_DEP_WAY): $(TEST_REPO_SRC_WAY)
 	mkdir --parents $(@D)
 	cp $< $@
+
+$(TEST_REPO_DEP_H2): $(TEST_REPO_SRC_H2)
+	mkdir --parents $(@D)
+	cp $< $@
 	
 $(TEST_REPO_MARKER): $(TEST_REPO_REQS) | $(TEST_REPO)
 	sed -i \
-		-e '/sed:SHA1_SELF/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_SELF) | cut -d' ' -f1 -z)"/' \
-		-e '/sed:SHA1_WAY/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_WAY) | cut -d' ' -f1 -z)"/' \
-		-e '/sed:VERSION/s/"[^"]*"/"$(VERSION)"/' \
+		-e '/sed:H2_VERSION/s/"[^"]*"/"$(H2_VERSION)"/' \
+		-e '/sed:H2_SHA1/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_H2) | cut -d' ' -f1 -z)"/' \
+		-e '/sed:START_VERSION/s/"[^"]*"/"$(VERSION)"/' \
+		-e '/sed:START_SHA1/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_START) | cut -d' ' -f1 -z)"/' \
+		-e '/sed:WAY_VERSION/s/"[^"]*"/"$(WAY_VERSION)"/' \
+		-e '/sed:WAY_SHA1/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_WAY) | cut -d' ' -f1 -z)"/' \
 		$(WAY_JAVA)	$(Y_JAVA)
 	touch $@
 
@@ -201,6 +218,7 @@ TEST_RUNTIME_DEPS := $(SLF4J_NOP)
 ## test --add-modules
 TEST_ADD_MODULES := org.testng
 TEST_ADD_MODULES += org.slf4j
+TEST_ADD_MODULES += com.h2database
 
 ## test --add-reads
 TEST_ADD_READS := objectos.start=org.testng
@@ -224,8 +242,8 @@ include make/java-install.mk
 WAY_SCRIPT := Way.java
 
 .PHONY: way
-way: $(WAY_SCRIPT) $(INSTALL)
-	$(JAVA) $< --repo-remote $(LOCAL_REPO)/
+way: $(INSTALL) $(WAY_SCRIPT)
+	$(JAVA) $(WAY_SCRIPT) --repo-remote $(LOCAL_REPO)/
 
-$(WAY_SCRIPT): $(WAY_JAVA)
+$(WAY_SCRIPT): $(WAY_JAVA) $(TEST_REPO_MARKER)
 	sed 's/package objectos.start;//' $< > $@
