@@ -23,6 +23,7 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
@@ -38,8 +39,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -59,11 +62,11 @@ final class Way {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "ae3c3106e2a601752e4e7a0b2c7dc4f34f545a1a"; // sed:START_SHA1
+    final String startSha1 = "981cf7de3bae475b4c054af4b7dda6ab08016f1c"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
-    final String waySha1 = "fa1df73b60d86b3bac38a41c070e5b30ff02b132"; // sed:WAY_SHA1
+    final String waySha1 = "2e53952e785111740060d6d2083045715831c31c"; // sed:WAY_SHA1
 
     final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 
@@ -274,6 +277,7 @@ final class Way {
     // these must come first
     final Map<String, Option> byName = new LinkedHashMap<>();
     int maxLength = 0;
+    private final List<String> startArgs = new ArrayList<>();
 
     // options
     final Option basedir = path("--basedir", Path.of(System.getProperty("user.dir", "")).toAbsolutePath());
@@ -284,7 +288,9 @@ final class Way {
 
     final Option httpRequestTimout = duration("--http-request-timeout", Duration.ofMinutes(1));
 
-    final Option repoBoot = path("--repo-boot", basedir.path().resolve(".objectos/boot"));
+    final Option workdir = path("--workdir", basedir.path().resolve(".objectos"));
+
+    final Option repoBoot = path("--repo-boot", workdir.path().resolve("boot"));
 
     final Option repoRemote = string("--repo-remote", "https://repo.maven.apache.org/maven2/")
         .validator(this::repoRemote);
@@ -348,7 +354,15 @@ final class Way {
     final Map<String, Object> asMap() {
       return byName.entrySet()
           .stream()
-          .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().value));
+          .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().value));
+    }
+
+    final String[] startArgs() {
+      return startArgs.toArray(String[]::new);
+    }
+
+    final void postpone(String arg) {
+      startArgs.add(arg);
     }
 
   }
@@ -370,17 +384,21 @@ final class Way {
       return $INIT;
     }
 
-    final String keyName;
-    keyName = args[int0++];
+    final String arg;
+    arg = args[int0++];
 
     final Map<String, Option> byName;
     byName = options.byName;
 
     final Option option;
-    option = byName.get(keyName);
+    option = byName.get(arg);
 
     if (option == null) {
-      throw new UnsupportedOperationException("Implement me :: unknown key :: " + keyName);
+
+      options.postpone(arg);
+
+      return $OPTIONS_PARSE;
+
     }
 
     if (int0 == args.length) {
@@ -645,10 +663,24 @@ final class Way {
       final Class<?> startClass;
       startClass = loader.loadClass("objectos.start.Start");
 
-      final Method bootMethod;
-      bootMethod = startClass.getMethod("boot", Map.class);
+      final Constructor<?> constructor;
+      constructor = startClass.getConstructor(Map.class);
 
-      bootMethod.invoke(null, options.asMap());
+      final Map<String, Object> map;
+      map = options.asMap();
+
+      map.put("logger", logger);
+
+      final Object startInstance;
+      startInstance = constructor.newInstance(map);
+
+      final Method startMethod;
+      startMethod = startClass.getMethod("start", String[].class);
+
+      final Object args;
+      args = options.startArgs();
+
+      startMethod.invoke(startInstance, args);
 
       return $RUNNING;
     } catch (ClassNotFoundException e) {
@@ -661,6 +693,10 @@ final class Way {
       return toError("Failed to invoke main method", e);
     } catch (InvocationTargetException e) {
       return toError("Failed to invoke main method", e);
+    } catch (InstantiationException e) {
+      return toError("Failed to create Start instance", e);
+    } catch (IllegalArgumentException e) {
+      return toError("Failed to create Start instance", e);
     }
   }
 

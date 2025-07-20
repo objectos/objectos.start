@@ -168,7 +168,7 @@ final class Y {
   // # BEGIN: Note.Sink
   // ##################################################################
 
-  private static final App.NoteSink INSTANCE = App.NoteSink.OfConsole.create(config -> {});
+  private static final App.NoteSink INSTANCE = App.NoteSink.sysout();
 
   public static Note.Sink noteSink() {
     return INSTANCE;
@@ -434,11 +434,11 @@ final class Y {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "ae3c3106e2a601752e4e7a0b2c7dc4f34f545a1a"; // sed:START_SHA1
+    final String startSha1 = "981cf7de3bae475b4c054af4b7dda6ab08016f1c"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
-    final String waySha1 = "fa1df73b60d86b3bac38a41c070e5b30ff02b132"; // sed:WAY_SHA1
+    final String waySha1 = "2e53952e785111740060d6d2083045715831c31c"; // sed:WAY_SHA1
 
     final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 

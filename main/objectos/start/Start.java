@@ -15,30 +15,57 @@
  */
 package objectos.start;
 
+import java.nio.file.Path;
 import java.util.Map;
-import java.util.Objects;
+import java.util.NoSuchElementException;
 import objectos.way.App;
 import objectos.way.Note;
+import objectos.way.Sql;
+import org.h2.jdbcx.JdbcConnectionPool;
 
-public final class Start {
+public final class Start extends App.Bootstrap {
 
-  @SuppressWarnings("unused")
-  private final Map<String, Object> options;
+  // We introduce this indirection so options can use the bootOptions map more easily
+  private class Options {
 
-  Start(Map<String, Object> options) {
-    this.options = options;
+    final Option<Path> db = optionPath(opt -> {
+      opt.name("--db");
+      opt.required();
+      opt.value(Start.this.<Path> bootOption("--workdir").resolve("db"));
+    });
+
+    final Option<Integer> dbPoolSize = optionInteger(opt -> {
+      opt.name("--db-pool-size");
+      opt.required();
+      opt.value(1);
+    });
+
+    final Option<String> dbRoot = optionString(opt -> {
+      opt.name("--db-root");
+      opt.required();
+      opt.value("root");
+    });
+
+    final Option<String> dbRootPassword = optionString(opt -> {
+      opt.name("--db-root-password");
+      opt.required();
+      opt.value("");
+    });
+
   }
 
-  public static void boot(Map<String, Object> options) {
-    Objects.requireNonNull(options, "options == null");
+  private final Map<String, Object> bootOptions;
 
-    final Start start;
-    start = new Start(options);
+  private final Options options;
 
-    start.bootstrap();
+  public Start(Map<String, Object> bootOptions) {
+    this.bootOptions = bootOptions;
+
+    options = new Options();
   }
 
-  final void bootstrap() {
+  @Override
+  protected final void bootstrap() {
     // Mark bootstrap start time
     final long startTime;
     startTime = System.currentTimeMillis();
@@ -80,10 +107,67 @@ public final class Start {
     ctx.putInstance(App.ShutdownHook.class, shutdownHook);
 
     shutdownHook.registerIfPossible(noteSink);
+
+    // Database
+    final Sql.Database db;
+    db = db(ctx);
+
+    ctx.putInstance(Sql.Database.class, db);
   }
 
   private Note.Sink noteSink() {
-    return App.NoteSink.OfConsole.create();
+    final Appendable logger;
+    logger = bootOption("logger");
+
+    return App.NoteSink.ofAppendable(logger);
+  }
+
+  private Sql.Database db(App.Injector ctx) {
+    final Path dbPath;
+    dbPath = options.db.get();
+
+    final String url;
+    url = "jdbc:h2:file:" + dbPath;
+
+    final String root;
+    root = options.dbRoot.get();
+
+    final String rootPassword;
+    rootPassword = options.dbRootPassword.get();
+
+    final JdbcConnectionPool pool;
+    pool = JdbcConnectionPool.create(url, root, rootPassword);
+
+    final Integer poolSize;
+    poolSize = options.dbPoolSize.get();
+
+    pool.setMaxConnections(poolSize.intValue());
+
+    final App.ShutdownHook shutdownHook;
+    shutdownHook = ctx.getInstance(App.ShutdownHook.class);
+
+    shutdownHook.register(pool::dispose);
+
+    return Sql.Database.create(config -> {
+      config.dataSource(pool);
+
+      final Note.Sink noteSink;
+      noteSink = ctx.getInstance(Note.Sink.class);
+
+      config.noteSink(noteSink);
+    });
+  }
+
+  @SuppressWarnings("unchecked")
+  private <T> T bootOption(String name) {
+    final Object option;
+    option = bootOptions.get(name);
+
+    if (option == null) {
+      throw new NoSuchElementException(name);
+    }
+
+    return (T) option;
   }
 
 }

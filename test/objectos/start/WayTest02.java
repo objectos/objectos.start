@@ -64,6 +64,7 @@ public final class WayTest02 {
         ".objectos/boot/" + Y.META.h2Sha1 + ".jar",
         ".objectos/boot/" + Y.META.startSha1 + ".jar",
         ".objectos/boot/" + Y.META.waySha1 + ".jar",
+        ".objectos/db.mv.db",
         "Way.java",
         "main/module-info.java",
         "main/objectos/test/Start.java"
