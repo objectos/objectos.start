@@ -20,36 +20,21 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import objectos.way.App;
 import objectos.way.Note;
-import objectos.way.Sql;
-import org.h2.jdbcx.JdbcConnectionPool;
 
 public final class Start extends App.Bootstrap {
 
-  // We introduce this indirection so options can use the bootOptions map more easily
+  // We introduce this indirection so options can use the bootOptions map
   private class Options {
 
-    final Option<Path> db = optionPath(opt -> {
-      opt.name("--db");
-      opt.required();
-      opt.value(Start.this.<Path> bootOption("--workdir").resolve("db"));
+    @SuppressWarnings("unused")
+    final Option<Integer> port = optionInteger(opt -> {
+      opt.name("--port");
+      opt.value(4000);
     });
 
-    final Option<Integer> dbPoolSize = optionInteger(opt -> {
-      opt.name("--db-pool-size");
-      opt.required();
-      opt.value(1);
-    });
-
-    final Option<String> dbRoot = optionString(opt -> {
-      opt.name("--db-root");
-      opt.required();
-      opt.value("root");
-    });
-
-    final Option<String> dbRootPassword = optionString(opt -> {
-      opt.name("--db-root-password");
-      opt.required();
-      opt.value("");
+    final Option<Path> projectFile = optionPath(opt -> {
+      opt.name("--project-file");
+      opt.value(Start.this.<Path> bootOption("--basedir").resolve("Way.toml"));
     });
 
   }
@@ -108,11 +93,14 @@ public final class Start extends App.Bootstrap {
 
     shutdownHook.registerIfPossible(noteSink);
 
-    // Database
-    final Sql.Database db;
-    db = db(ctx);
+    // Project Model
+    final Path projectFile;
+    projectFile = options.projectFile.get();
 
-    ctx.putInstance(Sql.Database.class, db);
+    final Project.Model model;
+    model = Project.Model.load(projectFile);
+
+    ctx.putInstance(Project.Model.class, model);
   }
 
   private Note.Sink noteSink() {
@@ -120,42 +108,6 @@ public final class Start extends App.Bootstrap {
     logger = bootOption("logger");
 
     return App.NoteSink.ofAppendable(logger);
-  }
-
-  private Sql.Database db(App.Injector ctx) {
-    final Path dbPath;
-    dbPath = options.db.get();
-
-    final String url;
-    url = "jdbc:h2:file:" + dbPath;
-
-    final String root;
-    root = options.dbRoot.get();
-
-    final String rootPassword;
-    rootPassword = options.dbRootPassword.get();
-
-    final JdbcConnectionPool pool;
-    pool = JdbcConnectionPool.create(url, root, rootPassword);
-
-    final Integer poolSize;
-    poolSize = options.dbPoolSize.get();
-
-    pool.setMaxConnections(poolSize.intValue());
-
-    final App.ShutdownHook shutdownHook;
-    shutdownHook = ctx.getInstance(App.ShutdownHook.class);
-
-    shutdownHook.register(pool::dispose);
-
-    return Sql.Database.create(config -> {
-      config.dataSource(pool);
-
-      final Note.Sink noteSink;
-      noteSink = ctx.getInstance(Note.Sink.class);
-
-      config.noteSink(noteSink);
-    });
   }
 
   @SuppressWarnings("unchecked")

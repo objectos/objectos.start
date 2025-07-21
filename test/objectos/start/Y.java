@@ -271,6 +271,21 @@ final class Y {
       }
     }
 
+    public final String readString(String path) {
+      try {
+        final Path file;
+        file = resolve(path);
+
+        return Files.readString(file);
+      } catch (IOException e) {
+        throw new UncheckedIOException(e);
+      }
+    }
+
+    public final Path resolve(String path) {
+      return root.resolve(path);
+    }
+
     public final void waitFor() {
       try {
         process.waitFor();
@@ -434,7 +449,7 @@ final class Y {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "981cf7de3bae475b4c054af4b7dda6ab08016f1c"; // sed:START_SHA1
+    final String startSha1 = "9cf26b0f2692c4ee94a4a71a9a0122a17d776270"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 

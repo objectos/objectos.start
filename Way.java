@@ -20,8 +20,10 @@ import static java.lang.System.Logger.Level.INFO;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
@@ -37,8 +39,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -58,17 +62,21 @@ final class Way {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "777435a835fefe262ec05a5e99b92b6cfde2d8b9"; // sed:START_SHA1
+    final String startSha1 = "fff0cf075fd6d009bf62ed1697baf97528f7958d"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
-    final String waySha1 = "fa1df73b60d86b3bac38a41c070e5b30ff02b132"; // sed:WAY_SHA1
+    final String waySha1 = "2e53952e785111740060d6d2083045715831c31c"; // sed:WAY_SHA1
 
     final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 
   }
 
   private byte[] buffer;
+
+  private Clock clock;
+
+  private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   private MessageDigest digest;
 
@@ -78,7 +86,7 @@ final class Way {
 
   private int int0;
 
-  private Logger logger;
+  private Appendable logger;
 
   private final Meta meta = new Meta();
 
@@ -269,9 +277,10 @@ final class Way {
     // these must come first
     final Map<String, Option> byName = new LinkedHashMap<>();
     int maxLength = 0;
+    private final List<String> startArgs = new ArrayList<>();
 
     // options
-    final Option basedir = path("--basedir", Path.of(""));
+    final Option basedir = path("--basedir", Path.of(System.getProperty("user.dir", "")).toAbsolutePath());
 
     final Option bufferSize = integer("--buffer-size", 16 * 1024);
 
@@ -279,7 +288,9 @@ final class Way {
 
     final Option httpRequestTimout = duration("--http-request-timeout", Duration.ofMinutes(1));
 
-    final Option repoBoot = path("--repo-boot", basedir.path().resolve(".objectos/boot"));
+    final Option workdir = path("--workdir", basedir.path().resolve(".objectos"));
+
+    final Option repoBoot = path("--repo-boot", workdir.path().resolve("boot"));
 
     final Option repoRemote = string("--repo-remote", "https://repo.maven.apache.org/maven2/")
         .validator(this::repoRemote);
@@ -343,7 +354,15 @@ final class Way {
     final Map<String, Object> asMap() {
       return byName.entrySet()
           .stream()
-          .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, entry -> entry.getValue().value));
+          .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().value));
+    }
+
+    final String[] startArgs() {
+      return startArgs.toArray(String[]::new);
+    }
+
+    final void postpone(String arg) {
+      startArgs.add(arg);
     }
 
   }
@@ -365,17 +384,21 @@ final class Way {
       return $INIT;
     }
 
-    final String keyName;
-    keyName = args[int0++];
+    final String arg;
+    arg = args[int0++];
 
     final Map<String, Option> byName;
     byName = options.byName;
 
     final Option option;
-    option = byName.get(keyName);
+    option = byName.get(arg);
 
     if (option == null) {
-      throw new UnsupportedOperationException("Implement me :: unknown key :: " + keyName);
+
+      options.postpone(arg);
+
+      return $OPTIONS_PARSE;
+
     }
 
     if (int0 == args.length) {
@@ -403,17 +426,21 @@ final class Way {
   // ##################################################################
 
   private byte executeInit() {
-    if (logger == null) {
-      logger = new Logger();
+    if (clock == null) {
+      clock = Clock.systemDefaultZone();
     }
 
-    logger.info("Objectos Start v%s", meta.startVersion);
+    if (logger == null) {
+      logger = System.out;
+    }
+
+    logInfo("Objectos Start v%s", meta.startVersion);
 
     final String format;
     format = "(%3s) %-" + options.maxLength + "s %s";
 
     for (Option option : options.values()) {
-      logger.info(format, option.source, option.name, option.value);
+      logInfo(format, option.source, option.name, option.value);
     }
 
     return $INIT_TRY;
@@ -505,7 +532,7 @@ final class Way {
     final Path file;
     file = dep.local();
 
-    logger.info("DEP %s -> %s", uri, file);
+    logInfo("DEP %s -> %s", uri, file);
 
     final String scheme;
     scheme = uri.getScheme();
@@ -577,12 +604,12 @@ final class Way {
     sha1 = hexFormat.formatHex(sha1Bytes);
 
     if (!sha1.equals(dep.sha1)) {
-      logger.error("Checksum mismatch for %s: got %s", file, sha1);
+      logError("Checksum mismatch for %s: got %s", file, sha1);
 
       return $ERROR;
     }
 
-    logger.info("CHK %s", file);
+    logInfo("CHK %s", file);
 
     return $BOOT_DEPS_HAS_NEXT;
   }
@@ -636,10 +663,24 @@ final class Way {
       final Class<?> startClass;
       startClass = loader.loadClass("objectos.start.Start");
 
-      final Method bootMethod;
-      bootMethod = startClass.getMethod("boot", Map.class);
+      final Constructor<?> constructor;
+      constructor = startClass.getConstructor(Map.class);
 
-      bootMethod.invoke(null, options.asMap());
+      final Map<String, Object> map;
+      map = options.asMap();
+
+      map.put("logger", logger);
+
+      final Object startInstance;
+      startInstance = constructor.newInstance(map);
+
+      final Method startMethod;
+      startMethod = startClass.getMethod("start", String[].class);
+
+      final Object args;
+      args = options.startArgs();
+
+      startMethod.invoke(startInstance, args);
 
       return $RUNNING;
     } catch (ClassNotFoundException e) {
@@ -652,6 +693,10 @@ final class Way {
       return toError("Failed to invoke main method", e);
     } catch (InvocationTargetException e) {
       return toError("Failed to invoke main method", e);
+    } catch (InstantiationException e) {
+      return toError("Failed to create Start instance", e);
+    } catch (IllegalArgumentException e) {
+      return toError("Failed to create Start instance", e);
     }
   }
 
@@ -768,45 +813,28 @@ final class Way {
   // # BEGIN: Logging
   // ##################################################################
 
-  static class Logger {
+  private void logInfo(String message) {
+    log0(INFO, message);
+  }
 
-    private final Clock clock;
+  private void logInfo(String format, Object... args) {
+    logInfo(
+        String.format(format, args)
+    );
+  }
 
-    private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
+  private void logError(String message) {
+    log0(ERROR, message);
+  }
 
-    Logger() {
-      this(Clock.systemDefaultZone());
-    }
+  private void logError(String format, Object... args) {
+    logError(
+        String.format(format, args)
+    );
+  }
 
-    Logger(Clock clock) {
-      this.clock = clock;
-    }
-
-    final void info(String message) {
-      log0(INFO, message);
-    }
-
-    final void info(String format, Object... args) {
-      info(
-          String.format(format, args)
-      );
-    }
-
-    final void error(String message) {
-      log0(ERROR, message);
-    }
-
-    final void error(String format, Object... args) {
-      error(
-          String.format(format, args)
-      );
-    }
-
-    void print(String log) {
-      System.out.println(log);
-    }
-
-    private void log0(System.Logger.Level level, String message) {
+  private void log0(System.Logger.Level level, String message) {
+    try {
       final LocalDateTime now;
       now = LocalDateTime.now(clock);
 
@@ -817,11 +845,12 @@ final class Way {
       markerName = level.getName();
 
       final String log;
-      log = String.format("%s %-5s %s", time, markerName, message);
+      log = String.format("%s %-5s %s%n", time, markerName, message);
 
-      print(log);
+      logger.append(log);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Failed to log message", e);
     }
-
   }
 
   private byte toError(String message, Throwable t) {
@@ -836,11 +865,15 @@ final class Way {
   // # BEGIN: Testing API
   // ##################################################################
 
+  final void clock(Clock value) {
+    clock = value;
+  }
+
   final void object0(Object value) {
     object0 = value;
   }
 
-  final void logger(Logger value) {
+  final void logger(Appendable value) {
     logger = value;
   }
 
