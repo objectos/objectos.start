@@ -17,6 +17,7 @@ package objectos.start;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -30,7 +31,7 @@ public class ProjectModelTest {
     project = Y.project(opts -> {});
 
     final Path file;
-    file = project.resolve("Way.toml");
+    file = project.resolve(".objectos/project.toml");
 
     final Project.Model model;
     model = Project.Model.load(file);
@@ -47,7 +48,7 @@ public class ProjectModelTest {
     model.coordinates(coordinates);
 
     assertEquals(
-        project.readString("Way.toml"),
+        project.readString(".objectos/project.toml"),
 
         """
         [coordinates]
@@ -55,6 +56,37 @@ public class ProjectModelTest {
         artifact = "objectos.test"
         version = "1.0.0-SNAPSHOT"
         """
+    );
+  }
+
+  @Test
+  public void testCase02() {
+    final Y.Project project;
+    project = Y.project(opts -> {
+      opts.addFile(".objectos/project.toml", """
+      [coordinates]
+      group = "br.com.objectos"
+      artifact = "objectos.test"
+      version = "1.0.0-SNAPSHOT"
+      """);
+    });
+
+    final Path file;
+    file = project.resolve(".objectos/project.toml");
+
+    final Project.Model model;
+    model = Project.Model.load(file);
+
+    assertTrue(model.exists());
+
+    assertEquals(
+        model.coordinates(),
+
+        new Project.Coordinates(
+            "br.com.objectos",
+            "objectos.test",
+            "1.0.0-SNAPSHOT"
+        )
     );
   }
 

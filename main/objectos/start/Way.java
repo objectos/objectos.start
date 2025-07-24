@@ -62,11 +62,11 @@ final class Way {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "9cf26b0f2692c4ee94a4a71a9a0122a17d776270"; // sed:START_SHA1
+    final String startSha1 = "a88f6b546a9c2fc80516dbb1467d1aab8cadc336"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
-    final String waySha1 = "2e53952e785111740060d6d2083045715831c31c"; // sed:WAY_SHA1
+    final String waySha1 = "2726e38fcf1fc7e9b15fd077ce4dec90d37bb478"; // sed:WAY_SHA1
 
     final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 
