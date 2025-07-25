@@ -18,16 +18,13 @@ package objectos.start;
 import static org.testng.Assert.assertEquals;
 
 import java.util.Set;
-import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 public final class WayTest02 {
 
-  private Y.Project project;
-
-  @BeforeClass
-  public void prepare() {
-    project = Y.project(opts -> {
+  @Test
+  public void testCase01() {
+    try (Y.Project proj = Y.project(opts -> {
       opts.addFile("main/module-info.java", """
       module objectos.test {
         exports objectos.test;
@@ -45,28 +42,24 @@ public final class WayTest02 {
         }
       }
       """);
-    });
-  }
+    })) {
+      proj.start();
 
-  @Test
-  public void testCase01() {
-    assertEquals(project.ls(), Set.of(
-        "Way.java",
-        "main/module-info.java",
-        "main/objectos/test/Start.java"
-    ));
+      assertEquals(proj.ls(), Set.of(
+          ".objectos/boot/" + Y.META.startSha1 + ".jar",
+          ".objectos/boot/" + Y.META.waySha1 + ".jar",
+          "Way.java",
+          "main/module-info.java",
+          "main/objectos/test/Start.java"
+      ));
 
-    project.way("--repo-remote", Y.repoRemoteArg());
+      final Y.Tab tab;
+      tab = proj.newTab();
 
-    project.waitFor();
+      tab.navigate("/");
 
-    assertEquals(project.ls(), Set.of(
-        ".objectos/boot/" + Y.META.startSha1 + ".jar",
-        ".objectos/boot/" + Y.META.waySha1 + ".jar",
-        "Way.java",
-        "main/module-info.java",
-        "main/objectos/test/Start.java"
-    ));
+      assertEquals(tab.title(), "Welcome!");
+    }
   }
 
 }

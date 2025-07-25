@@ -37,6 +37,7 @@ REMOTE_REPOS := https://repo.maven.apache.org/maven2
 ## Dependencies
 H2 := com.h2database/h2/$(H2_VERSION)
 WAY := $(GROUP_ID)/objectos.way/$(WAY_VERSION)
+PLAYWRIGHT := com.microsoft.playwright/playwright/1.53.0
 SLF4J_NOP := org.slf4j/slf4j-nop/2.0.17
 TESTNG := org.testng/testng/7.11.0
 
@@ -202,6 +203,7 @@ $(TEST_REPO_MARKER): $(TEST_REPO_REQS) | $(TEST_REPO)
 
 ## test compile deps
 TEST_COMPILE_DEPS := $(TESTNG)
+TEST_COMPILE_DEPS += $(PLAYWRIGHT)
 
 ## additional requirements
 TEST_COMPILE_REQS_MORE := $(TEST_REPO_MARKER)
@@ -212,19 +214,28 @@ include make/java-test-compile.mk
 # start@test
 #
 
+## test runtime mode: CP for playwright
+TEST_RUNTIME_MODE := class-path
+
 ## test main class
 TEST_MAIN := objectos.start.StartTest
 
-## www test runtime dependencies
+## test runtime dependencies
 TEST_RUNTIME_DEPS := $(SLF4J_NOP)
 
 ## test --add-modules
-TEST_ADD_MODULES := org.testng
-TEST_ADD_MODULES += org.slf4j
-TEST_ADD_MODULES += com.h2database
+#TEST_ADD_MODULES := org.testng
+#TEST_ADD_MODULES += org.slf4j
+#TEST_ADD_MODULES += com.h2database
+#TEST_ADD_MODULES += playwright
+#TEST_ADD_MODULES += com.google.gson
 
 ## test --add-reads
-TEST_ADD_READS := objectos.start=org.testng
+#TEST_ADD_READS := objectos.start=org.testng
+#TEST_ADD_READS += objectos.start=playwright
+
+## test JVM options
+TEST_JVM_OPTS := -Dplaywright.headless=true
 
 include make/java-test.mk
 

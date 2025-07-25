@@ -15,6 +15,44 @@
  */
 package objectos.start;
 
+import objectos.way.Html;
+import objectos.way.Http;
+
 final class Ui {
+
+  static final class Module implements Http.Routing.Module {
+    @Override
+    public final void configure(Http.Routing routing) {
+      routing.path("/", path -> {
+        path.allow(Http.Method.GET, this::welcome);
+      });
+    }
+
+    private void welcome(Http.Exchange http) {
+      final Page page = new Page("Welcome!");
+
+      http.ok(page);
+    }
+  }
+
+  static final class Page extends Html.Template {
+    private final String title;
+
+    Page(String title) {
+      this.title = title;
+    }
+
+    @Override
+    protected final void render() {
+      doctype();
+      html(
+          head(
+              title(title)
+          ),
+          body(
+          )
+      );
+    }
+  }
 
 }

@@ -15,7 +15,6 @@
  */
 package objectos.start;
 
-import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -23,7 +22,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -34,8 +32,6 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import objectos.way.App;
 import objectos.way.Io;
 import objectos.way.Note;
@@ -186,176 +182,45 @@ final class Y {
   // # BEGIN: Project
   // ##################################################################
 
-  public static final class Project {
+  public sealed interface Project extends AutoCloseable permits YProject {
 
-    static final class Builder {
+    sealed interface Options permits YProjectBuilder {
 
-      private final Path root = Y.nextTempDir();
-
-      private Builder() {
-        try {
-          final Path originalWay;
-          originalWay = Path.of("main", "objectos", "start", "Way.java");
-
-          final String originalContents;
-          originalContents = Files.readString(originalWay, StandardCharsets.UTF_8);
-
-          final String contents;
-          contents = originalContents.replace("package objectos.start;", "");
-
-          addFile("Way.java", contents);
-        } catch (IOException e) {
-          throw new UncheckedIOException(e);
-        }
-      }
-
-      public final void addFile(String relativePath, String contents) {
-        try {
-          final Path file;
-          file = root.resolve(relativePath);
-
-          final Path parent;
-          parent = file.getParent();
-
-          Files.createDirectories(parent);
-
-          Files.writeString(file, contents, StandardOpenOption.CREATE_NEW);
-        } catch (IOException e) {
-          throw new UncheckedIOException(e);
-        }
-      }
-
-      private Project build() {
-        return new Project(this);
-      }
+      void addFile(String relativePath, String contents);
 
     }
 
-    private record Notes(
-        Note.Ref1<String> stderr,
-        Note.Ref1<String> stdout,
-        Note.Ref1<IOException> ioException
-    ) {
+    @Override
+    void close();
 
-      static Notes get() {
-        Class<?> s;
-        s = Project.class;
+    // FS
 
-        return new Notes(
-            Note.Ref1.create(s, "STE", Note.INFO),
-            Note.Ref1.create(s, "STO", Note.INFO),
-            Note.Ref1.create(s, "IOX", Note.ERROR)
-        );
-      }
+    Set<String> ls();
 
-    }
+    String readString(String path);
 
-    private final Notes notes = Notes.get();
+    Path resolve(String path);
 
-    private final Note.Sink noteSink = Y.noteSink();
+    // process
 
-    private Process process;
+    void start();
 
-    private final Path root;
+    void startWith(String... args);
 
-    private Project(Builder builder) {
-      this.root = builder.root;
-    }
+    // browser
 
-    public final Set<String> ls() {
-      try (Stream<Path> walk = Files.walk(root)) {
-        return walk
-            .filter(path -> !path.equals(root))
-            .filter(Files::isRegularFile)
-            .map(root::relativize)
-            .map(Object::toString)
-            .collect(Collectors.toUnmodifiableSet());
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
-    }
-
-    public final String readString(String path) {
-      try {
-        final Path file;
-        file = resolve(path);
-
-        return Files.readString(file);
-      } catch (IOException e) {
-        throw new UncheckedIOException(e);
-      }
-    }
-
-    public final Path resolve(String path) {
-      return root.resolve(path);
-    }
-
-    public final void waitFor() {
-      try {
-        process.waitFor();
-      } catch (InterruptedException e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    public final void way(String... args) {
-      final List<String> cmd;
-      cmd = new ArrayList<>();
-
-      cmd.add("java");
-
-      cmd.add("Way.java");
-
-      for (String arg : args) {
-        cmd.add(arg);
-      }
-
-      try {
-        final ProcessBuilder builder;
-        builder = new ProcessBuilder(cmd);
-
-        builder.directory(root.toFile());
-
-        process = builder.start();
-
-        Thread.ofVirtual().start(this::stderr);
-        Thread.ofVirtual().start(this::stdout);
-      } catch (IOException e) {
-        throw new RuntimeException(e);
-      }
-    }
-
-    private void stderr() {
-      try (BufferedReader reader = process.errorReader()) {
-        String line;
-        while ((line = reader.readLine()) != null) {
-          System.out.println(line);
-        }
-      } catch (IOException e) {
-        noteSink.send(notes.ioException, e);
-      }
-    }
-
-    private void stdout() {
-      try (BufferedReader reader = process.inputReader()) {
-        String line;
-        while ((line = reader.readLine()) != null) {
-          System.out.println(line);
-        }
-      } catch (IOException e) {
-        noteSink.send(notes.ioException, e);
-      }
-    }
+    @SuppressWarnings("exports")
+    Tab newTab();
 
   }
 
-  public static Project project(Consumer<? super Project.Builder> opts) {
-    final Project.Builder builder;
-    builder = new Project.Builder();
+  public static Project project(Consumer<? super Y.Project.Options> opts) {
+    final YProjectBuilder builder;
+    builder = new YProjectBuilder();
 
     opts.accept(builder);
 
-    return builder.build();
+    return new YProject(builder);
   }
 
   // ##################################################################
@@ -392,6 +257,22 @@ final class Y {
 
   // ##################################################################
   // # END: ShutdownHook
+  // ##################################################################
+
+  // ##################################################################
+  // # BEGIN: Tab
+  // ##################################################################
+
+  public sealed interface Tab permits YTab {
+
+    void navigate(String path);
+
+    String title();
+
+  }
+
+  // ##################################################################
+  // # END: Tab
   // ##################################################################
 
   // ##################################################################
@@ -453,7 +334,7 @@ final class Y {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "a88f6b546a9c2fc80516dbb1467d1aab8cadc336"; // sed:START_SHA1
+    final String startSha1 = "268ce8a8da57cda4c8e07b2d3531769a3cd1b167"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 

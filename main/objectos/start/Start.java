@@ -15,10 +15,12 @@
  */
 package objectos.start;
 
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import objectos.way.App;
+import objectos.way.Http;
 import objectos.way.Note;
 
 public final class Start extends App.Bootstrap {
@@ -26,7 +28,6 @@ public final class Start extends App.Bootstrap {
   // We introduce this indirection so options can use the bootOptions map
   private class Options {
 
-    @SuppressWarnings("unused")
     final Option<Integer> port = optionInteger(opt -> {
       opt.name("--port");
       opt.value(4000);
@@ -34,7 +35,7 @@ public final class Start extends App.Bootstrap {
 
     final Option<Path> projectFile = optionPath(opt -> {
       opt.name("--project-file");
-      opt.value(Start.this.<Path> bootOption("--basedir").resolve("Way.toml"));
+      opt.value(Start.this.<Path> bootOption("--workdir").resolve("project.toml"));
     });
 
   }
@@ -61,6 +62,35 @@ public final class Start extends App.Bootstrap {
 
     final Note.Sink noteSink;
     noteSink = injector.getInstance(Note.Sink.class);
+
+    // Http.Server
+    final Http.Server server;
+    server = Http.Server.create(opts -> {
+      opts.bufferSize(8192, 8192);
+
+      final Ui.Module module;
+      module = new Ui.Module();
+
+      final Http.Handler handler;
+      handler = Http.Handler.of(module);
+
+      opts.handler(handler);
+
+      opts.noteSink(noteSink);
+
+      opts.port(options.port.get());
+    });
+
+    final App.ShutdownHook shutdownHook;
+    shutdownHook = injector.getInstance(App.ShutdownHook.class);
+
+    shutdownHook.register(server);
+
+    try {
+      server.start();
+    } catch (IOException e) {
+      throw App.serviceFailed("Http.Server", e);
+    }
 
     // Note the bootstrap total time
     final Note.Long1 totalTimeNote;
