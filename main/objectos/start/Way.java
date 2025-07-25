@@ -40,13 +40,13 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /// Bootstraps Objectos Start.
 ///
@@ -62,7 +62,7 @@ final class Way {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "005009a4356a769314e45ef21fd7abf3fa6b5bc1"; // sed:START_SHA1
+    final String startSha1 = "ef07b520145ed0f8cde723bd6e0dda1c38414bf7"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
@@ -79,8 +79,6 @@ final class Way {
   private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   private MessageDigest digest;
-
-  private boolean devMode;
 
   private final HexFormat hexFormat = HexFormat.of();
 
@@ -286,6 +284,8 @@ final class Way {
 
     final Option bufferSize = integer("--buffer-size", 16 * 1024);
 
+    final Option devClassOutput = path("--dev-class-output", null);
+
     final Option httpConnectTimout = duration("--http-connect-timeout", Duration.ofSeconds(10));
 
     final Option httpRequestTimout = duration("--http-request-timeout", Duration.ofMinutes(1));
@@ -296,9 +296,6 @@ final class Way {
 
     final Option repoRemote = string("--repo-remote", "https://repo.maven.apache.org/maven2/")
         .validator(this::repoRemote);
-
-    final Option stage = string("--stage", "PROD")
-        .validator(this::stage);
 
     final Iterable<Option> values() {
       return byName.values();
@@ -356,24 +353,21 @@ final class Way {
       return repoRemote;
     }
 
-    private Object stage(Object obj) {
-      final String stage;
-      stage = (String) obj;
+    final Map<String, Object> asMap() {
+      final Map<String, Object> map;
+      map = new HashMap<>();
 
-      final String stageName;
-      stageName = stage.toUpperCase();
+      for (Map.Entry<String, Option> entry : byName.entrySet()) {
+        final String key;
+        key = entry.getKey();
 
-      if (stageName.equals("DEV") || stageName.equals("PROD")) {
-        return stageName;
+        final Option value;
+        value = entry.getValue();
+
+        map.put(key, value.value);
       }
 
-      throw new IllegalArgumentException("--stage must be either 'dev' or 'prod', but was: " + stage);
-    }
-
-    final Map<String, Object> asMap() {
-      return byName.entrySet()
-          .stream()
-          .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().value));
+      return map;
     }
 
     final String[] startArgs() {
@@ -475,16 +469,6 @@ final class Way {
 
     buffer = new byte[bufferSize];
 
-    // devMode
-
-    final Option optionStage;
-    optionStage = options.stage;
-
-    final String stage;
-    stage = optionStage.string();
-
-    devMode = stage.equals("DEV");
-
     // digest
     try {
       digest = MessageDigest.getInstance("SHA-1");
@@ -516,7 +500,10 @@ final class Way {
   private byte executeBootDeps() {
     int0 = 0;
 
-    if (!devMode) {
+    final Path devClassOutput;
+    devClassOutput = options.devClassOutput.path();
+
+    if (devClassOutput == null) {
       object0 = new Artifact[] {
           new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1),
 
@@ -667,8 +654,11 @@ final class Way {
     final Path location;
     location = options.repoBoot.path();
 
+    final Path devClassOutput;
+    devClassOutput = options.devClassOutput.path();
+
     final ModuleFinder finder;
-    finder = !devMode ? ModuleFinder.of(location) : ModuleFinder.of(location, Path.of("work", "main"));
+    finder = devClassOutput == null ? ModuleFinder.of(location) : ModuleFinder.of(location, devClassOutput);
 
     final ModuleFinder afterFinder;
     afterFinder = ModuleFinder.of();

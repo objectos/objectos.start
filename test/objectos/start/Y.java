@@ -334,7 +334,7 @@ public final class Y {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "005009a4356a769314e45ef21fd7abf3fa6b5bc1"; // sed:START_SHA1
+    final String startSha1 = "ef07b520145ed0f8cde723bd6e0dda1c38414bf7"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 

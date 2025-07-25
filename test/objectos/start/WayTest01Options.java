@@ -22,6 +22,21 @@ import org.testng.annotations.Test;
 public final class WayTest01Options {
 
   @Test
+  public void devClassOutput01() {
+    final Y.WayTester way;
+    way = Y.wayTester();
+
+    way.args("--dev-class-output", "work/main");
+
+    way.execute(Way.$OPTIONS, Way.$INIT_TRY);
+
+    final String log;
+    log = way.logContaining("(CLI) --dev-class-output");
+
+    assertTrue(log.endsWith("work/main"));
+  }
+
+  @Test
   public void repoRemote01() {
     final Y.WayTester way;
     way = Y.wayTester();
@@ -34,21 +49,6 @@ public final class WayTest01Options {
     log = way.logContaining("(CLI) --repo-remote");
 
     assertTrue(log.endsWith("work/test-repo/"));
-  }
-
-  @Test
-  public void stage01() {
-    final Y.WayTester way;
-    way = Y.wayTester();
-
-    way.args("--stage", "dEv");
-
-    way.execute(Way.$OPTIONS, Way.$INIT_TRY);
-
-    final String log;
-    log = way.logContaining("(CLI) --stage");
-
-    assertTrue(log.endsWith("DEV"));
   }
 
 }

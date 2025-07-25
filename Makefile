@@ -255,4 +255,4 @@ WAY_SCRIPT := Way.java
 .PHONY: way
 way: $(INSTALL) $(TEST_REPO_MARKER)
 	sed 's/package objectos.start;//' $(WAY_JAVA) > $(WAY_SCRIPT)
-	$(JAVA) $(WAY_SCRIPT) --repo-remote $(LOCAL_REPO)/ --stage dev
+	$(JAVA) $(WAY_SCRIPT) --dev-class-output $(CLASS_OUTPUT) --repo-remote $(LOCAL_REPO)/

@@ -18,7 +18,6 @@ package objectos.start;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
-import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import objectos.start.app.Project;
@@ -58,8 +57,6 @@ public final class Start extends App.Bootstrap {
   public static final Lang.Key<Path> STYLES_SCAN_DIRECTORY = Lang.Key.of("STYLES_SCAN_DIRECTORY");
 
   private final Map<String, Object> bootOptions;
-
-  private final Path classOutput = Path.of("work", "main");
 
   private final Options options;
 
@@ -159,7 +156,7 @@ public final class Start extends App.Bootstrap {
     // Stage
     switch (stage()) {
       case DEV -> {
-        ctx.putInstance(STYLES_SCAN_DIRECTORY, classOutput);
+        ctx.putInstance(STYLES_SCAN_DIRECTORY, bootOption("--dev-class-output"));
       }
 
       case PROD -> {
@@ -240,7 +237,7 @@ public final class Start extends App.Bootstrap {
 
             opts.noteSink(noteSink);
 
-            opts.directory(classOutput);
+            opts.directory(bootOption("--dev-class-output"));
           });
         } catch (IOException e) {
           throw App.serviceFailed("App.Reloader", e);
@@ -269,13 +266,10 @@ public final class Start extends App.Bootstrap {
   }
 
   private Stage stage() {
-    final String stageName;
-    stageName = bootOption("--stage");
+    final Path devClassOutput;
+    devClassOutput = bootOption("--dev-class-output");
 
-    final String upper;
-    upper = stageName.toUpperCase(Locale.US);
-
-    return Stage.valueOf(upper);
+    return devClassOutput != null ? Stage.DEV : Stage.PROD;
   }
 
 }

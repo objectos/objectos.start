@@ -56,6 +56,8 @@ final class YProject implements Y.Project {
 
   }
 
+  private static final String DEV_CLASS_OUTPUT = Path.of("work", "main").toAbsolutePath().toString();
+
   private final Path basedir;
 
   private Browser browser;
@@ -147,9 +149,9 @@ final class YProject implements Y.Project {
   @Override
   public final void start() {
     startWith(
+        "--dev-class-output", DEV_CLASS_OUTPUT,
         "--repo-remote", Y.repoRemoteArg(),
-        "--port", Integer.toString(port),
-        "--stage", "dev"
+        "--port", Integer.toString(port)
     );
   }
 
