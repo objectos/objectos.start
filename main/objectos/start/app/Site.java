@@ -13,19 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package objectos.start;
+package objectos.start.app;
 
-import objectos.start.Ui.Page;
+import objectos.start.app.Ui.Page;
 import objectos.way.App;
 import objectos.way.Css;
 import objectos.way.Http;
 import objectos.way.Web;
 
-final class Site implements Http.Routing.Module {
+public final class Site implements Http.Routing.Module {
 
   private final App.Injector injector;
 
-  Site(App.Injector injector) {
+  public Site(App.Injector injector) {
     this.injector = injector;
   }
 

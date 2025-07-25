@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package objectos.start;
+package objectos.start.app;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
@@ -21,6 +21,7 @@ import static org.testng.Assert.assertTrue;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import objectos.start.Y;
 import org.testng.annotations.Test;
 
 public class ProjectModelTest {

@@ -36,4 +36,19 @@ public final class WayTest01Options {
     assertTrue(log.endsWith("work/test-repo/"));
   }
 
+  @Test
+  public void stage01() {
+    final Y.WayTester way;
+    way = Y.wayTester();
+
+    way.args("--stage", "dEv");
+
+    way.execute(Way.$OPTIONS, Way.$INIT_TRY);
+
+    final String log;
+    log = way.logContaining("(CLI) --stage");
+
+    assertTrue(log.endsWith("DEV"));
+  }
+
 }

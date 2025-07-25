@@ -13,14 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package objectos.start;
+package objectos.start.app;
 
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
+import objectos.way.App;
 
 /// The Objectos Start __Project__ namespace.
-final class Project {
+public final class Project {
 
   record Config(
       Coordinates coordinates
@@ -59,7 +60,8 @@ final class Project {
   ) {}
 
   /// Represents an Objectos Way project.
-  sealed interface Model permits ProjectModel {
+  @App.DoNotReload
+  public sealed interface Model permits ProjectModel {
 
     static Model load(Path file) {
       return ProjectModel.load(file);

@@ -13,9 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package objectos.start;
+package objectos.start.app;
 
 import java.nio.file.Path;
+import objectos.start.Start;
 import objectos.way.App;
 import objectos.way.Css;
 import objectos.way.Html;

@@ -16,10 +16,13 @@
 package objectos.start;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import objectos.start.app.Project;
+import objectos.start.app.Site;
 import objectos.way.App;
 import objectos.way.Http;
 import objectos.way.Lang;
@@ -42,17 +45,21 @@ public final class Start extends App.Bootstrap {
       opt.value(Start.this.<Path> bootOption("--workdir").resolve("project.toml"));
     });
 
-    final Option<String> stage = optionString(opt -> {
-      opt.name("--stage");
-      opt.validator(s -> s.equalsIgnoreCase("prod") || s.equalsIgnoreCase("dev"), "Allowed values: prod | dev");
-      opt.value("prod");
-    });
+  }
+
+  private enum Stage {
+
+    DEV,
+
+    PROD;
 
   }
 
-  static final Lang.Key<Path> STYLES_SCAN_DIRECTORY = Lang.Key.of("STYLES_SCAN_DIRECTORY");
+  public static final Lang.Key<Path> STYLES_SCAN_DIRECTORY = Lang.Key.of("STYLES_SCAN_DIRECTORY");
 
   private final Map<String, Object> bootOptions;
+
+  private final Path classOutput = Path.of("work", "main");
 
   private final Options options;
 
@@ -80,11 +87,8 @@ public final class Start extends App.Bootstrap {
     server = Http.Server.create(opts -> {
       opts.bufferSize(8192, 8192);
 
-      final Http.Routing.Module module;
-      module = new Site(injector);
-
       final Http.Handler handler;
-      handler = Http.Handler.of(module);
+      handler = serverHandler(injector);
 
       opts.handler(handler);
 
@@ -153,22 +157,14 @@ public final class Start extends App.Bootstrap {
     ctx.putInstance(Project.Model.class, model);
 
     // Stage
-    final String stage;
-    stage = options.stage.get();
-
-    switch (stage.toUpperCase(Locale.US)) {
-      case "DEV" -> {
-        final Path classOutput;
-        classOutput = Path.of("work", "main");
-
+    switch (stage()) {
+      case DEV -> {
         ctx.putInstance(STYLES_SCAN_DIRECTORY, classOutput);
       }
 
-      case "PROD" -> {
+      case PROD -> {
 
       }
-
-      default -> throw new AssertionError("Unexpected stage. Only prod or dev allowed.");
     }
   }
 
@@ -198,6 +194,68 @@ public final class Start extends App.Bootstrap {
     }
   }
 
+  private record Reloader(App.Injector injector) implements App.Reloader.HandlerFactory {
+    @Override
+    public final Http.Handler reload(ClassLoader loader) throws Exception {
+      final Class<? extends Reloader> self;
+      self = getClass();
+
+      final Module original;
+      original = self.getModule();
+
+      final Class<?> reloadedClass;
+      reloadedClass = loader.loadClass("objectos.start.Dev");
+
+      final Module reloaded;
+      reloaded = reloadedClass.getModule();
+
+      original.addReads(reloaded);
+
+      original.addExports("objectos.start.app", reloaded);
+
+      final Method reloadMethod;
+      reloadMethod = reloadedClass.getMethod("reload", Object.class, Module.class);
+
+      final Object instance;
+      instance = reloadMethod.invoke(null, injector, original);
+
+      final Http.Routing.Module module;
+      module = (Http.Routing.Module) instance;
+
+      return Http.Handler.of(module);
+    }
+  }
+
+  private Http.Handler serverHandler(App.Injector injector) {
+    return switch (stage()) {
+      case DEV -> {
+        try {
+          yield App.Reloader.create(opts -> {
+            opts.handlerFactory(new Reloader(injector));
+
+            opts.moduleOf(Start.class);
+
+            final Note.Sink noteSink;
+            noteSink = injector.getInstance(Note.Sink.class);
+
+            opts.noteSink(noteSink);
+
+            opts.directory(classOutput);
+          });
+        } catch (IOException e) {
+          throw App.serviceFailed("App.Reloader", e);
+        }
+      }
+
+      case PROD -> {
+        final Http.Routing.Module module;
+        module = new Site(injector);
+
+        yield Http.Handler.of(module);
+      }
+    };
+  }
+
   @SuppressWarnings("unchecked")
   private <T> T bootOption(String name) {
     final Object option;
@@ -208,6 +266,16 @@ public final class Start extends App.Bootstrap {
     }
 
     return (T) option;
+  }
+
+  private Stage stage() {
+    final String stageName;
+    stageName = bootOption("--stage");
+
+    final String upper;
+    upper = stageName.toUpperCase(Locale.US);
+
+    return Stage.valueOf(upper);
   }
 
 }

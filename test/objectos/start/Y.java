@@ -36,7 +36,7 @@ import objectos.way.App;
 import objectos.way.Io;
 import objectos.way.Note;
 
-final class Y {
+public final class Y {
 
   private Y() {}
 
@@ -170,6 +170,7 @@ final class Y {
 
   private static final App.NoteSink INSTANCE = App.NoteSink.sysout();
 
+  @SuppressWarnings("exports")
   public static Note.Sink noteSink() {
     return INSTANCE;
   }
@@ -209,7 +210,6 @@ final class Y {
 
     // browser
 
-    @SuppressWarnings("exports")
     Tab newTab();
 
   }
@@ -334,16 +334,17 @@ final class Y {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "8bfcacb0d995bc640c06c1154a74879838aa5738"; // sed:START_SHA1
+    final String startSha1 = "005009a4356a769314e45ef21fd7abf3fa6b5bc1"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
-    final String waySha1 = "2726e38fcf1fc7e9b15fd077ce4dec90d37bb478"; // sed:WAY_SHA1
+    final String waySha1 = "e0694e6c9dfe0a91b2b168728e793be15bb3ee36"; // sed:WAY_SHA1
 
     final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 
   }
 
+  @SuppressWarnings("exports")
   public static final Meta META = new Meta();
 
   // ##################################################################

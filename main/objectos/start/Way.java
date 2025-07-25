@@ -62,11 +62,11 @@ final class Way {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "8bfcacb0d995bc640c06c1154a74879838aa5738"; // sed:START_SHA1
+    final String startSha1 = "005009a4356a769314e45ef21fd7abf3fa6b5bc1"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
-    final String waySha1 = "2726e38fcf1fc7e9b15fd077ce4dec90d37bb478"; // sed:WAY_SHA1
+    final String waySha1 = "e0694e6c9dfe0a91b2b168728e793be15bb3ee36"; // sed:WAY_SHA1
 
     final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 
@@ -79,6 +79,8 @@ final class Way {
   private final DateTimeFormatter dateFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS");
 
   private MessageDigest digest;
+
+  private boolean devMode;
 
   private final HexFormat hexFormat = HexFormat.of();
 
@@ -295,6 +297,9 @@ final class Way {
     final Option repoRemote = string("--repo-remote", "https://repo.maven.apache.org/maven2/")
         .validator(this::repoRemote);
 
+    final Option stage = string("--stage", "PROD")
+        .validator(this::stage);
+
     final Iterable<Option> values() {
       return byName.values();
     }
@@ -349,6 +354,20 @@ final class Way {
       }
 
       return repoRemote;
+    }
+
+    private Object stage(Object obj) {
+      final String stage;
+      stage = (String) obj;
+
+      final String stageName;
+      stageName = stage.toUpperCase();
+
+      if (stageName.equals("DEV") || stageName.equals("PROD")) {
+        return stageName;
+      }
+
+      throw new IllegalArgumentException("--stage must be either 'dev' or 'prod', but was: " + stage);
     }
 
     final Map<String, Object> asMap() {
@@ -456,6 +475,16 @@ final class Way {
 
     buffer = new byte[bufferSize];
 
+    // devMode
+
+    final Option optionStage;
+    optionStage = options.stage;
+
+    final String stage;
+    stage = optionStage.string();
+
+    devMode = stage.equals("DEV");
+
     // digest
     try {
       digest = MessageDigest.getInstance("SHA-1");
@@ -487,11 +516,17 @@ final class Way {
   private byte executeBootDeps() {
     int0 = 0;
 
-    object0 = new Artifact[] {
-        new Artifact("br.com.objectos", "objectos.start", meta.startVersion, meta.startSha1),
+    if (!devMode) {
+      object0 = new Artifact[] {
+          new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1),
 
-        new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1)
-    };
+          new Artifact("br.com.objectos", "objectos.start", meta.startVersion, meta.startSha1)
+      };
+    } else {
+      object0 = new Artifact[] {
+          new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1)
+      };
+    }
 
     return $BOOT_DEPS_HAS_NEXT;
   }
@@ -633,7 +668,7 @@ final class Way {
     location = options.repoBoot.path();
 
     final ModuleFinder finder;
-    finder = ModuleFinder.of(location);
+    finder = !devMode ? ModuleFinder.of(location) : ModuleFinder.of(location, Path.of("work", "main"));
 
     final ModuleFinder afterFinder;
     afterFinder = ModuleFinder.of();
@@ -651,7 +686,7 @@ final class Way {
     systemClassLoader = ClassLoader.getSystemClassLoader();
 
     final ModuleLayer layer;
-    layer = boot.defineModulesWithOneLoader(configuration, systemClassLoader);
+    layer = boot.defineModulesWithManyLoaders(configuration, systemClassLoader);
 
     // our loader
     final ClassLoader loader;
