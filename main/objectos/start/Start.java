@@ -17,11 +17,15 @@ package objectos.start;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import objectos.way.App;
 import objectos.way.Http;
+import objectos.way.Lang;
 import objectos.way.Note;
+import objectos.way.Script;
+import objectos.way.Web;
 
 public final class Start extends App.Bootstrap {
 
@@ -38,7 +42,15 @@ public final class Start extends App.Bootstrap {
       opt.value(Start.this.<Path> bootOption("--workdir").resolve("project.toml"));
     });
 
+    final Option<String> stage = optionString(opt -> {
+      opt.name("--stage");
+      opt.validator(s -> s.equalsIgnoreCase("prod") || s.equalsIgnoreCase("dev"), "Allowed values: prod | dev");
+      opt.value("prod");
+    });
+
   }
+
+  static final Lang.Key<Path> STYLES_SCAN_DIRECTORY = Lang.Key.of("STYLES_SCAN_DIRECTORY");
 
   private final Map<String, Object> bootOptions;
 
@@ -68,8 +80,8 @@ public final class Start extends App.Bootstrap {
     server = Http.Server.create(opts -> {
       opts.bufferSize(8192, 8192);
 
-      final Ui.Module module;
-      module = new Ui.Module();
+      final Http.Routing.Module module;
+      module = new Site(injector);
 
       final Http.Handler handler;
       handler = Http.Handler.of(module);
@@ -115,13 +127,21 @@ public final class Start extends App.Bootstrap {
 
     noteSink.send(startNote);
 
-    // ShutdownHook
+    // App.ShutdownHook
     final App.ShutdownHook shutdownHook;
     shutdownHook = App.ShutdownHook.create(config -> config.noteSink(noteSink));
 
     ctx.putInstance(App.ShutdownHook.class, shutdownHook);
 
     shutdownHook.registerIfPossible(noteSink);
+
+    // Web.Resources
+    final Web.Resources webResources;
+    webResources = webResources(ctx);
+
+    ctx.putInstance(Web.Resources.class, webResources);
+
+    shutdownHook.register(webResources);
 
     // Project Model
     final Path projectFile;
@@ -131,6 +151,25 @@ public final class Start extends App.Bootstrap {
     model = Project.Model.load(projectFile);
 
     ctx.putInstance(Project.Model.class, model);
+
+    // Stage
+    final String stage;
+    stage = options.stage.get();
+
+    switch (stage.toUpperCase(Locale.US)) {
+      case "DEV" -> {
+        final Path classOutput;
+        classOutput = Path.of("work", "main");
+
+        ctx.putInstance(STYLES_SCAN_DIRECTORY, classOutput);
+      }
+
+      case "PROD" -> {
+
+      }
+
+      default -> throw new AssertionError("Unexpected stage. Only prod or dev allowed.");
+    }
   }
 
   private Note.Sink noteSink() {
@@ -138,6 +177,25 @@ public final class Start extends App.Bootstrap {
     logger = bootOption("logger");
 
     return App.NoteSink.ofAppendable(logger);
+  }
+
+  private Web.Resources webResources(App.Injector ctx) {
+    try {
+      return Web.Resources.create(opts -> {
+        final Note.Sink noteSink;
+        noteSink = ctx.getInstance(Note.Sink.class);
+
+        opts.noteSink(noteSink);
+
+        opts.contentTypes("""
+        .css: text/css; charset=utf-8
+        """);
+
+        opts.addMedia("/script.js", Script.Library.of());
+      });
+    } catch (IOException e) {
+      throw App.serviceFailed("Web.Resources", e);
+    }
   }
 
   @SuppressWarnings("unchecked")

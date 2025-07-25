@@ -146,7 +146,11 @@ final class YProject implements Y.Project {
 
   @Override
   public final void start() {
-    startWith("--repo-remote", Y.repoRemoteArg(), "--port", Integer.toString(port));
+    startWith(
+        "--repo-remote", Y.repoRemoteArg(),
+        "--port", Integer.toString(port),
+        "--stage", "dev"
+    );
   }
 
   @Override

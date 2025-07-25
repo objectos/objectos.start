@@ -62,11 +62,11 @@ final class Way {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "fff0cf075fd6d009bf62ed1697baf97528f7958d"; // sed:START_SHA1
+    final String startSha1 = "45f7e6b5e18afc431db5104f72c85b31d41e2c4f"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
-    final String waySha1 = "2e53952e785111740060d6d2083045715831c31c"; // sed:WAY_SHA1
+    final String waySha1 = "2726e38fcf1fc7e9b15fd077ce4dec90d37bb478"; // sed:WAY_SHA1
 
     final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 
@@ -490,9 +490,7 @@ final class Way {
     object0 = new Artifact[] {
         new Artifact("br.com.objectos", "objectos.start", meta.startVersion, meta.startSha1),
 
-        new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1),
-
-        new Artifact("com.h2database", "h2", meta.h2Version, meta.h2Sha1),
+        new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1)
     };
 
     return $BOOT_DEPS_HAS_NEXT;
@@ -659,45 +657,53 @@ final class Way {
     final ClassLoader loader;
     loader = layer.findLoader("objectos.start");
 
+    final Class<?> startClass;
+
     try {
-      final Class<?> startClass;
       startClass = loader.loadClass("objectos.start.Start");
+    } catch (ClassNotFoundException | SecurityException e) {
+      return toError("Failed to load the Objectos Start class", e);
+    }
 
-      final Constructor<?> constructor;
+    final Constructor<?> constructor;
+
+    try {
       constructor = startClass.getConstructor(Map.class);
+    } catch (NoSuchMethodException | SecurityException e) {
+      return toError("Failed to reflect the constructor", e);
+    }
 
+    final Object startInstance;
+
+    try {
       final Map<String, Object> map;
       map = options.asMap();
 
       map.put("logger", logger);
 
-      final Object startInstance;
       startInstance = constructor.newInstance(map);
+    } catch (InstantiationException | IllegalAccessException | IllegalArgumentException | InvocationTargetException e) {
+      return toError("Failed to create an Objectos Start instance", e);
+    }
 
-      final Method startMethod;
+    final Method startMethod;
+
+    try {
       startMethod = startClass.getMethod("start", String[].class);
+    } catch (NoSuchMethodException | SecurityException e) {
+      return toError("Failed to reflect the start method", e);
+    }
 
+    try {
       final Object args;
       args = options.startArgs();
 
       startMethod.invoke(startInstance, args);
-
-      return $RUNNING;
-    } catch (ClassNotFoundException e) {
-      return toError("Failed to load main class", e);
-    } catch (NoSuchMethodException e) {
-      return toError("Failed to reflect main method", e);
-    } catch (SecurityException e) {
-      return toError("Failed to reflect main method", e);
-    } catch (IllegalAccessException e) {
-      return toError("Failed to invoke main method", e);
-    } catch (InvocationTargetException e) {
-      return toError("Failed to invoke main method", e);
-    } catch (InstantiationException e) {
-      return toError("Failed to create Start instance", e);
-    } catch (IllegalArgumentException e) {
-      return toError("Failed to create Start instance", e);
+    } catch (IllegalAccessException | InvocationTargetException e) {
+      return toError("Failed to invoke the start method", e);
     }
+
+    return $RUNNING;
   }
 
   // ##################################################################
