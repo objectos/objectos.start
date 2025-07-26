@@ -20,16 +20,12 @@ import com.microsoft.playwright.BrowserType;
 import com.microsoft.playwright.BrowserType.LaunchOptions;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
-import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import objectos.start.Y.Project;
@@ -62,8 +58,6 @@ final class YProject implements Y.Project {
 
   private Browser browser;
 
-  private final CountDownLatch latch = new CountDownLatch(1);
-
   private final Notes notes = Notes.get();
 
   private final Note.Sink noteSink = Y.noteSink();
@@ -72,7 +66,7 @@ final class YProject implements Y.Project {
 
   private final int port;
 
-  private Process process;
+  private Closeable server;
 
   YProject(YProjectBuilder builder) {
     basedir = builder.basedir();
@@ -92,26 +86,12 @@ final class YProject implements Y.Project {
   }
 
   private void closeProcess() {
-    process.destroy();
-
-    boolean shouldInterrupt;
-    shouldInterrupt = false;
-
-    try {
-      final boolean exited;
-      exited = process.waitFor(5, TimeUnit.SECONDS);
-
-      if (exited) {
-        return;
+    if (server != null) {
+      try {
+        server.close();
+      } catch (IOException e) {
+        noteSink.send(notes.ioException, e);
       }
-    } catch (InterruptedException e) {
-      shouldInterrupt = true;
-    }
-
-    process.destroyForcibly();
-
-    if (shouldInterrupt) {
-      Thread.currentThread().interrupt();
     }
   }
 
@@ -149,7 +129,10 @@ final class YProject implements Y.Project {
   @Override
   public final void start() {
     startWith(
+        "--basedir", basedir.toString(),
         "--dev-class-output", DEV_CLASS_OUTPUT,
+        "--workdir", basedir.resolve(".objectos").toString(),
+        "--repo-boot", basedir.resolve(Path.of(".objectos", "boot")).toString(),
         "--repo-remote", Y.repoRemoteArg(),
         "--port", Integer.toString(port)
     );
@@ -157,36 +140,13 @@ final class YProject implements Y.Project {
 
   @Override
   public final void startWith(String... args) {
-    final List<String> cmd;
-    cmd = new ArrayList<>();
+    final Way way;
+    way = new Way();
 
-    cmd.add("java");
+    server = way.start(args);
 
-    cmd.add("Way.java");
-
-    for (String arg : args) {
-      cmd.add(arg);
-    }
-
-    try {
-      final ProcessBuilder builder;
-      builder = new ProcessBuilder(cmd);
-
-      builder.directory(basedir.toFile());
-
-      process = builder.start();
-
-      Thread.ofVirtual().start(this::stderr);
-
-      Thread.ofVirtual().start(this::stdout);
-
-      latch.await();
-    } catch (IOException e) {
-      throw new UncheckedIOException(e);
-    } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
-
-      throw new RuntimeException(e);
+    if (server == null) {
+      throw new AssertionError("Server failed to start");
     }
 
     playwright = Playwright.create();
@@ -201,37 +161,6 @@ final class YProject implements Y.Project {
     launchOptions = new BrowserType.LaunchOptions().setHeadless(headless);
 
     browser = chromium.launch(launchOptions);
-  }
-
-  private void stderr() {
-    try (BufferedReader reader = process.errorReader()) {
-      String line;
-      while ((line = reader.readLine()) != null) {
-        System.out.println(line);
-      }
-    } catch (IOException e) {
-      noteSink.send(notes.ioException, e);
-    }
-  }
-
-  private void stdout() {
-    try (BufferedReader reader = process.inputReader()) {
-      String line;
-      while ((line = reader.readLine()) != null) {
-        System.out.println(line);
-
-        if (line.contains("objectos.start.Start") && line.contains("TMS")) {
-          latch.countDown();
-        }
-      }
-    } catch (IOException e) {
-      final String message;
-      message = e.getMessage();
-
-      if (!message.equals("Stream closed")) {
-        noteSink.send(notes.ioException, e);
-      }
-    }
   }
 
   @Override

@@ -16,35 +16,30 @@
 package objectos.start.app;
 
 import java.nio.file.Path;
+import java.util.function.Consumer;
 import objectos.start.Start;
 import objectos.way.App;
 import objectos.way.Css;
-import objectos.way.Html;
+import objectos.way.Media;
 import objectos.way.Note;
 
 final class Ui {
 
-  @Css.Source
-  static final class Page extends Html.Template {
-    private final String title;
+  public static final class Page {
 
-    Page(String title) {
-      this.title = title;
-    }
+    public String title;
 
-    @Override
-    protected final void render() {
-      doctype();
-      html(
-          head(
-              link(rel("stylesheet"), type("text/css"), href("/styles.css")),
-              script(src("/script.js")),
-              title(title)
-          ),
-          body(
-          )
-      );
-    }
+    private Page() {}
+
+  }
+
+  public static Media.Text page(Consumer<? super Page> opts) {
+    final Page pojo;
+    pojo = new Page();
+
+    opts.accept(pojo);
+
+    return new UiPage(pojo);
   }
 
   static Css.StyleSheet styles(App.Injector injector) {

@@ -58,6 +58,8 @@ public final class WayTest02 {
       tab.navigate("/");
 
       assertEquals(tab.title(), "Welcome!");
+
+      tab.dev();
     }
   }
 

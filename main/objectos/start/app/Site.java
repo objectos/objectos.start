@@ -15,10 +15,10 @@
  */
 package objectos.start.app;
 
-import objectos.start.app.Ui.Page;
 import objectos.way.App;
 import objectos.way.Css;
 import objectos.way.Http;
+import objectos.way.Media;
 import objectos.way.Web;
 
 public final class Site implements Http.Routing.Module {
@@ -46,20 +46,38 @@ public final class Site implements Http.Routing.Module {
       // in dev, we generate the file on each request
       path.allow(Http.Method.GET, this::styles);
     });
+
+    final Stage stage;
+    stage = injector.getInstance(Stage.class);
+
+    switch (stage) {
+      case DEV -> {
+        routing.path("/dev-stop", path -> {
+          path.allow(Http.Method.GET, http -> http.ok(Media.Bytes.textPlain("ok\n")));
+        });
+      }
+
+      case PROD -> {}
+    }
+
+    routing.handler(Http.Handler.notFound());
   }
 
   private void home(Http.Exchange http) {
     final Project.Model project;
     project = injector.getInstance(Project.Model.class);
 
-    if (project.exists()) {
-      throw new UnsupportedOperationException("Implement me");
+    if (!project.exists()) {
+      homeWelcome(http);
     } else {
-      final Page page;
-      page = new Page("Welcome!");
-
-      http.ok(page);
+      throw new UnsupportedOperationException("Implement me");
     }
+  }
+
+  private void homeWelcome(Http.Exchange http) {
+    http.ok(Ui.page(opts -> {
+      opts.title = "Welcome!";
+    }));
   }
 
   private void styles(Http.Exchange http) {

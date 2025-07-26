@@ -62,11 +62,11 @@ final class Way {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "0af7c85949f423211aba3da3089ce12c832d994b"; // sed:START_SHA1
+    final String startSha1 = "c89b8b332cf59a0ce9cd81f4c7adbc3bb985e646"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
-    final String waySha1 = "e0694e6c9dfe0a91b2b168728e793be15bb3ee36"; // sed:WAY_SHA1
+    final String waySha1 = "733728007861811ee00cb5da51b7e898749845cb"; // sed:WAY_SHA1
 
     final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 
@@ -112,6 +112,8 @@ final class Way {
     object0 = args;
 
     execute($OPTIONS, $RUNNING);
+
+    logInfo("Started");
   }
 
   // ##################################################################

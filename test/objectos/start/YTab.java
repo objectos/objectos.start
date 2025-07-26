@@ -16,6 +16,8 @@
 package objectos.start;
 
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.Page.WaitForURLOptions;
+import java.util.concurrent.TimeUnit;
 
 final class YTab implements Y.Tab {
 
@@ -27,6 +29,22 @@ final class YTab implements Y.Tab {
     this.baseUrl = baseUrl;
 
     this.page = page;
+  }
+
+  @Override
+  public final void dev() {
+    final boolean headless;
+    headless = Boolean.getBoolean("playwright.headless");
+
+    if (headless) {
+      // noop if running in headless mode
+      return;
+    }
+
+    final WaitForURLOptions options;
+    options = new Page.WaitForURLOptions().setTimeout(TimeUnit.DAYS.toMillis(1));
+
+    page.waitForURL(baseUrl + "/dev-stop", options);
   }
 
   @Override

@@ -18,6 +18,7 @@ package objectos.start;
 import static java.lang.System.Logger.Level.ERROR;
 import static java.lang.System.Logger.Level.INFO;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -62,11 +63,11 @@ final class Way {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "ef07b520145ed0f8cde723bd6e0dda1c38414bf7"; // sed:START_SHA1
+    final String startSha1 = "4cd0e38ff37e1036274dde6a5071726aa94673c7"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
-    final String waySha1 = "e0694e6c9dfe0a91b2b168728e793be15bb3ee36"; // sed:WAY_SHA1
+    final String waySha1 = "733728007861811ee00cb5da51b7e898749845cb"; // sed:WAY_SHA1
 
     final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
 
@@ -108,10 +109,17 @@ final class Way {
     way.start(args);
   }
 
-  private void start(String[] args) {
+  // visible for testing
+  final Closeable start(String[] args) {
     object0 = args;
 
     execute($OPTIONS, $RUNNING);
+
+    if (object0 instanceof Closeable c) {
+      return c;
+    } else {
+      return null;
+    }
   }
 
   // ##################################################################
@@ -727,6 +735,8 @@ final class Way {
     } catch (IllegalAccessException | InvocationTargetException e) {
       return toError("Failed to invoke the start method", e);
     }
+
+    object0 = startInstance;
 
     return $RUNNING;
   }

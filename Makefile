@@ -252,7 +252,17 @@ include make/java-install.mk
 ## Way.java dest
 WAY_SCRIPT := Way.java
 
+## way command
+WAY_JAVAX := $(JAVA)
+ifeq ($(ENABLE_DEBUG),1)
+WAY_JAVAX += -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=localhost:7000
+endif
+WAY_JAVAX += $(WAY_SCRIPT)
+WAY_JAVAX += --dev-class-output $(CLASS_OUTPUT)
+WAY_JAVAX += --repo-remote $(LOCAL_REPO)/
+
+
 .PHONY: way
 way: $(INSTALL) $(TEST_REPO_MARKER)
 	sed 's/package objectos.start;//' $(WAY_JAVA) > $(WAY_SCRIPT)
-	$(JAVA) $(WAY_SCRIPT) --dev-class-output $(CLASS_OUTPUT) --repo-remote $(LOCAL_REPO)/
+	$(WAY_JAVAX)

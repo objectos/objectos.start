@@ -15,6 +15,7 @@
  */
 package objectos.start;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import objectos.start.app.Project;
 import objectos.start.app.Site;
+import objectos.start.app.Stage;
 import objectos.way.App;
 import objectos.way.Http;
 import objectos.way.Lang;
@@ -29,7 +31,7 @@ import objectos.way.Note;
 import objectos.way.Script;
 import objectos.way.Web;
 
-public final class Start extends App.Bootstrap {
+public final class Start extends App.Bootstrap implements Closeable {
 
   // We introduce this indirection so options can use the bootOptions map
   private class Options {
@@ -46,24 +48,25 @@ public final class Start extends App.Bootstrap {
 
   }
 
-  private enum Stage {
-
-    DEV,
-
-    PROD;
-
-  }
-
   public static final Lang.Key<Path> STYLES_SCAN_DIRECTORY = Lang.Key.of("STYLES_SCAN_DIRECTORY");
 
   private final Map<String, Object> bootOptions;
 
   private final Options options;
 
+  private Http.Server server;
+
   public Start(Map<String, Object> bootOptions) {
     this.bootOptions = bootOptions;
 
     options = new Options();
+  }
+
+  @Override
+  public final void close() throws IOException {
+    if (server != null) {
+      server.close();
+    }
   }
 
   @Override
@@ -80,7 +83,6 @@ public final class Start extends App.Bootstrap {
     noteSink = injector.getInstance(Note.Sink.class);
 
     // Http.Server
-    final Http.Server server;
     server = Http.Server.create(opts -> {
       opts.bufferSize(8192, 8192);
 
@@ -154,7 +156,12 @@ public final class Start extends App.Bootstrap {
     ctx.putInstance(Project.Model.class, model);
 
     // Stage
-    switch (stage()) {
+    final Stage stage;
+    stage = stage();
+
+    ctx.putInstance(Stage.class, stage);
+
+    switch (stage) {
       case DEV -> {
         ctx.putInstance(STYLES_SCAN_DIRECTORY, bootOption("--dev-class-output"));
       }

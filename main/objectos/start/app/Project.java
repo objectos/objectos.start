@@ -21,6 +21,7 @@ import java.util.Objects;
 import objectos.way.App;
 
 /// The Objectos Start __Project__ namespace.
+@App.DoNotReload
 public final class Project {
 
   record Config(
