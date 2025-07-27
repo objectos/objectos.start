@@ -15,42 +15,30 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package objectos.start;
+package objectos.start.app;
 
-import static org.testng.Assert.assertTrue;
+import static org.testng.Assert.assertEquals;
 
+import objectos.way.Http;
+import org.testng.annotations.Listeners;
 import org.testng.annotations.Test;
 
-public final class WayTest01Options {
+@Listeners(Y.class)
+public class HomeTest {
 
-  @Test
-  public void classOutput01() {
-    final WayFacade way;
-    way = WayFacade.create();
+  @Test(enabled = false)
+  public void testCase01() {
+    final Http.Exchange http;
+    http = Y.http(opts -> {
+      opts.path("/");
+    });
 
-    way.args("--stage", "dev", "--class-output", "work/main");
+    assertEquals(
+        Y.handle(http),
 
-    way.execute(Way.$OPTIONS, Way.$INIT_TRY);
-
-    final String log;
-    log = way.logContaining("(CLI) --class-output");
-
-    assertTrue(log.endsWith("work/main"));
-  }
-
-  @Test
-  public void repoRemote01() {
-    final WayFacade way;
-    way = WayFacade.create();
-
-    way.args("--repo-remote", "work/test-repo/");
-
-    way.execute(Way.$OPTIONS, Way.$BOOT_DEPS);
-
-    final String log;
-    log = way.logContaining("(CLI) --repo-remote");
-
-    assertTrue(log.endsWith("work/test-repo/"));
+        """
+        """
+    );
   }
 
 }

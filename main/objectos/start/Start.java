@@ -1,29 +1,28 @@
 /*
+ * Objectos Start
  * Copyright (C) 2025 Objectos Software LTDA.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package objectos.start;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import objectos.start.app.Project;
-import objectos.start.app.Site;
-import objectos.start.app.Stage;
 import objectos.way.App;
 import objectos.way.Http;
 import objectos.way.Lang;
@@ -31,7 +30,7 @@ import objectos.way.Note;
 import objectos.way.Script;
 import objectos.way.Web;
 
-public final class Start extends App.Bootstrap implements Closeable {
+public abstract class Start extends App.Bootstrap implements Closeable {
 
   // We introduce this indirection so options can use the bootOptions map
   private class Options {
@@ -54,9 +53,9 @@ public final class Start extends App.Bootstrap implements Closeable {
 
   private final Options options;
 
-  private Http.Server server;
+  private Closeable server;
 
-  public Start(Map<String, Object> bootOptions) {
+  Start(Map<String, Object> bootOptions) {
     this.bootOptions = bootOptions;
 
     options = new Options();
@@ -79,33 +78,13 @@ public final class Start extends App.Bootstrap implements Closeable {
     final App.Injector injector;
     injector = App.Injector.create(this::injector);
 
-    final Note.Sink noteSink;
-    noteSink = injector.getInstance(Note.Sink.class);
-
     // Http.Server
-    server = Http.Server.create(opts -> {
-      opts.bufferSize(8192, 8192);
-
-      final Http.Handler handler;
-      handler = serverHandler(injector);
-
-      opts.handler(handler);
-
-      opts.noteSink(noteSink);
-
-      opts.port(options.port.get());
-    });
+    server = server(injector);
 
     final App.ShutdownHook shutdownHook;
     shutdownHook = injector.getInstance(App.ShutdownHook.class);
 
     shutdownHook.register(server);
-
-    try {
-      server.start();
-    } catch (IOException e) {
-      throw App.serviceFailed("Http.Server", e);
-    }
 
     // Note the bootstrap total time
     final Note.Long1 totalTimeNote;
@@ -113,6 +92,9 @@ public final class Start extends App.Bootstrap implements Closeable {
 
     final long totalTime;
     totalTime = System.currentTimeMillis() - startTime;
+
+    final Note.Sink noteSink;
+    noteSink = injector.getInstance(Note.Sink.class);
 
     noteSink.send(totalTimeNote, totalTime);
   }
@@ -155,22 +137,10 @@ public final class Start extends App.Bootstrap implements Closeable {
 
     ctx.putInstance(Project.Model.class, model);
 
-    // Stage
-    final Stage stage;
-    stage = stage();
-
-    ctx.putInstance(Stage.class, stage);
-
-    switch (stage) {
-      case DEV -> {
-        ctx.putInstance(STYLES_SCAN_DIRECTORY, bootOption("--dev-class-output"));
-      }
-
-      case PROD -> {
-
-      }
-    }
+    injectorStage(ctx);
   }
+
+  abstract void injectorStage(App.Injector.Options ctx);
 
   private Note.Sink noteSink() {
     final Appendable logger;
@@ -198,70 +168,37 @@ public final class Start extends App.Bootstrap implements Closeable {
     }
   }
 
-  private record Reloader(App.Injector injector) implements App.Reloader.HandlerFactory {
-    @Override
-    public final Http.Handler reload(ClassLoader loader) throws Exception {
-      final Class<? extends Reloader> self;
-      self = getClass();
+  abstract Http.Handler serverHandler(App.Injector injector);
 
-      final Module original;
-      original = self.getModule();
+  Closeable server(App.Injector injector) {
+    try {
+      final Http.Server server;
+      server = Http.Server.create(opts -> {
+        opts.bufferSize(8192, 8192);
 
-      final Class<?> reloadedClass;
-      reloadedClass = loader.loadClass("objectos.start.Dev");
+        final Http.Handler handler;
+        handler = serverHandler(injector);
 
-      final Module reloaded;
-      reloaded = reloadedClass.getModule();
+        opts.handler(handler);
 
-      original.addReads(reloaded);
+        final Note.Sink noteSink;
+        noteSink = injector.getInstance(Note.Sink.class);
 
-      original.addExports("objectos.start.app", reloaded);
+        opts.noteSink(noteSink);
 
-      final Method reloadMethod;
-      reloadMethod = reloadedClass.getMethod("reload", Object.class, Module.class);
+        opts.port(options.port.get());
+      });
 
-      final Object instance;
-      instance = reloadMethod.invoke(null, injector, original);
+      server.start();
 
-      final Http.Routing.Module module;
-      module = (Http.Routing.Module) instance;
-
-      return Http.Handler.of(module);
+      return server;
+    } catch (IOException e) {
+      throw App.serviceFailed("Http.Server", e);
     }
   }
 
-  private Http.Handler serverHandler(App.Injector injector) {
-    return switch (stage()) {
-      case DEV -> {
-        try {
-          yield App.Reloader.create(opts -> {
-            opts.handlerFactory(new Reloader(injector));
-
-            opts.moduleOf(Start.class);
-
-            final Note.Sink noteSink;
-            noteSink = injector.getInstance(Note.Sink.class);
-
-            opts.noteSink(noteSink);
-
-            opts.directory(bootOption("--dev-class-output"));
-          });
-        } catch (IOException e) {
-          throw App.serviceFailed("App.Reloader", e);
-        }
-      }
-
-      case PROD -> {
-        final Http.Routing.Module module;
-        module = new Site(injector);
-
-        yield Http.Handler.of(module);
-      }
-    };
-  }
-
   @SuppressWarnings("unchecked")
-  private <T> T bootOption(String name) {
+  final <T> T bootOption(String name) {
     final Object option;
     option = bootOptions.get(name);
 
@@ -270,13 +207,6 @@ public final class Start extends App.Bootstrap implements Closeable {
     }
 
     return (T) option;
-  }
-
-  private Stage stage() {
-    final Path devClassOutput;
-    devClassOutput = bootOption("--dev-class-output");
-
-    return devClassOutput != null ? Stage.DEV : Stage.PROD;
   }
 
 }

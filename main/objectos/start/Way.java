@@ -47,7 +47,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /// Bootstraps Objectos Start.
 ///
@@ -63,7 +65,7 @@ final class Way {
 
     final String h2Version = "2.3.232"; // sed:H2_VERSION
 
-    final String startSha1 = "4cd0e38ff37e1036274dde6a5071726aa94673c7"; // sed:START_SHA1
+    final String startSha1 = "6a72bc1e83e82c5fa9c9199a0303b1bb31678839"; // sed:START_SHA1
 
     final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
 
@@ -102,7 +104,7 @@ final class Way {
   // visible for testing
   Way() {}
 
-  public static void main(String[] args) {
+  public static void main(String... args) {
     final Way way;
     way = new Way();
 
@@ -202,16 +204,14 @@ final class Way {
     // SYS = System
     String source;
 
-    Function<? super Object, ? extends Object> validator;
+    final Consumer<Option> validator;
 
     Object value;
 
-    Option(Kind kind, String name, Object defaultValue) {
+    Option(Kind kind, String name, Consumer<Option> validator) {
       this.kind = kind;
       this.name = name;
-      this.value = defaultValue;
-
-      source = "DEF";
+      this.validator = validator;
     }
 
     @Override
@@ -225,12 +225,6 @@ final class Way {
       return name.hashCode();
     }
 
-    final Option validator(Function<? super Object, ? extends Object> value) {
-      validator = value;
-
-      return this;
-    }
-
     final void parse(String source, String rawValue) {
       value = switch (kind) {
         case DURATION -> Duration.parse(rawValue);
@@ -242,11 +236,13 @@ final class Way {
         case STRING -> rawValue;
       };
 
-      if (validator != null) {
-        value = validator.apply(value);
-      }
-
       this.source = source;
+    }
+
+    final void validate() {
+      if (validator != null) {
+        validator.accept(this);
+      }
     }
 
     final Duration duration() {
@@ -277,6 +273,46 @@ final class Way {
       return (T) value;
     }
 
+    final boolean unset() {
+      return value == null;
+    }
+
+    final boolean set() {
+      return value != null;
+    }
+
+    final void set(Object v) {
+      source = "DEF";
+
+      value = v;
+    }
+
+    final boolean trySet(Object defaultValue) {
+      boolean result;
+      result = false;
+
+      if (value == null) {
+        set(defaultValue);
+
+        result = true;
+      }
+
+      return result;
+    }
+
+    final void allowedValues(Object... allowed) {
+      for (Object o : allowed) {
+        if (value.equals(o)) {
+          return;
+        }
+      }
+
+      final String values;
+      values = Stream.of(allowed).map(Object::toString).collect(Collectors.joining(", "));
+
+      throw new IllegalArgumentException(name + " allowed values: " + values);
+    }
+
   }
 
   // ad-hoc enum so instances can be GC'ed after use.
@@ -287,78 +323,126 @@ final class Way {
     int maxLength = 0;
     private final List<String> startArgs = new ArrayList<>();
 
-    // options
-    final Option basedir = path("--basedir", Path.of(System.getProperty("user.dir", "")).toAbsolutePath());
+    // options: order is significant
+    final Option stage = string("--stage", opt -> {
+      if (!opt.trySet("prod")) {
+        opt.allowedValues("dev", "prod", "test");
+      }
+    });
 
-    final Option bufferSize = integer("--buffer-size", 16 * 1024);
+    final Option basedir = path("--basedir", opt -> {
+      if (opt.unset()) {
+        final String prop;
+        prop = System.getProperty("user.dir", "");
 
-    final Option devClassOutput = path("--dev-class-output", null);
+        Path p;
+        p = Path.of(prop);
 
-    final Option httpConnectTimout = duration("--http-connect-timeout", Duration.ofSeconds(10));
+        if (!p.isAbsolute()) {
+          p = p.toAbsolutePath();
+        }
 
-    final Option httpRequestTimout = duration("--http-request-timeout", Duration.ofMinutes(1));
+        opt.set(p);
+      }
+    });
 
-    final Option workdir = path("--workdir", basedir.path().resolve(".objectos"));
+    final Option bufferSize = integer("--buffer-size", opt -> {
+      opt.trySet(16 * 1024);
+    });
 
-    final Option repoBoot = path("--repo-boot", workdir.path().resolve("boot"));
+    final Option classOutput = path("--class-output", opt -> {
+      if (opt.set()) {
+        final String stageName;
+        stageName = stage.string();
 
-    final Option repoRemote = string("--repo-remote", "https://repo.maven.apache.org/maven2/")
-        .validator(this::repoRemote);
+        if ("prod".equals(stageName)) {
+          throw new IllegalArgumentException("--class-output must not be set with --stage prod");
+        }
+      }
+    });
+
+    final Option httpConnectTimout = duration("--http-connect-timeout", opt -> {
+      if (opt.unset()) {
+        opt.set(Duration.ofSeconds(10));
+      }
+    });
+
+    final Option httpRequestTimout = duration("--http-request-timeout", opt -> {
+      if (opt.unset()) {
+        opt.set(Duration.ofMinutes(1));
+      }
+    });
+
+    final Option workdir = path("--workdir", opt -> {
+      if (opt.unset()) {
+        opt.set(
+            basedir.path().resolve(".objectos")
+        );
+      }
+    });
+
+    final Option repoBoot = path("--repo-boot", opt -> {
+      if (opt.unset()) {
+        opt.set(
+            workdir.path().resolve("boot")
+        );
+      }
+    });
+
+    final Option repoRemote = string("--repo-remote", opt -> {
+      if (!opt.trySet("https://repo.maven.apache.org/maven2/")) {
+        final String repoRemote;
+        repoRemote = opt.string();
+
+        if (repoRemote.isEmpty()) {
+          throw new IllegalArgumentException("--repo-remote must not be empty");
+        }
+
+        if (repoRemote.isBlank()) {
+          throw new IllegalArgumentException("--repo-remote must not be blank");
+        }
+
+        final int length;
+        length = repoRemote.length();
+
+        final char last;
+        last = repoRemote.charAt(length - 1);
+
+        if (last != '/') {
+          throw new IllegalArgumentException("--repo-remote path must end in a '/' character, but was: " + repoRemote);
+        }
+      }
+    });
 
     final Iterable<Option> values() {
       return byName.values();
     }
 
-    private Option duration(String name, Duration value) {
-      return opt(Option.Kind.DURATION, name, value);
+    private Option duration(String name, Consumer<Option> validator) {
+      return opt(Option.Kind.DURATION, name, validator);
     }
 
-    private Option integer(String name, int value) {
-      return opt(Option.Kind.INTEGER, name, value);
+    private Option integer(String name, Consumer<Option> validator) {
+      return opt(Option.Kind.INTEGER, name, validator);
     }
 
-    private Option path(String name, Path value) {
-      return opt(Option.Kind.PATH, name, value);
+    private Option path(String name, Consumer<Option> validator) {
+      return opt(Option.Kind.PATH, name, validator);
     }
 
-    private Option string(String name, String value) {
-      return opt(Option.Kind.STRING, name, value);
+    private Option string(String name, Consumer<Option> validator) {
+      return opt(Option.Kind.STRING, name, validator);
     }
 
-    private Option opt(Option.Kind kind, String name, Object defaultValue) {
+    private Option opt(Option.Kind kind, String name, Consumer<Option> validator) {
       final Option option;
-      option = new Option(kind, name, defaultValue);
+      option = new Option(kind, name, validator);
 
       byName.put(name, option);
 
       maxLength = Math.max(maxLength, name.length());
 
       return option;
-    }
-
-    private Object repoRemote(Object obj) {
-      final String repoRemote;
-      repoRemote = (String) obj;
-
-      if (repoRemote.isEmpty()) {
-        throw new IllegalArgumentException("--repo-remote must not be empty");
-      }
-
-      if (repoRemote.isBlank()) {
-        throw new IllegalArgumentException("--repo-remote must not be blank");
-      }
-
-      final int length;
-      length = repoRemote.length();
-
-      final char last;
-      last = repoRemote.charAt(length - 1);
-
-      if (last != '/') {
-        throw new IllegalArgumentException("--repo-remote path must end in a '/' character, but was: " + repoRemote);
-      }
-
-      return repoRemote;
     }
 
     final Map<String, Object> asMap() {
@@ -447,6 +531,10 @@ final class Way {
   // ##################################################################
 
   private byte executeInit() {
+    for (Option opt : options.values()) {
+      opt.validate();
+    }
+
     if (clock == null) {
       clock = Clock.systemDefaultZone();
     }
@@ -508,19 +596,23 @@ final class Way {
   private byte executeBootDeps() {
     int0 = 0;
 
-    final Path devClassOutput;
-    devClassOutput = options.devClassOutput.path();
+    final String stage;
+    stage = options.stage.string();
 
-    if (devClassOutput == null) {
-      object0 = new Artifact[] {
-          new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1),
+    switch (stage) {
+      case "prod" -> {
+        object0 = new Artifact[] {
+            new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1),
 
-          new Artifact("br.com.objectos", "objectos.start", meta.startVersion, meta.startSha1)
-      };
-    } else {
-      object0 = new Artifact[] {
-          new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1)
-      };
+            new Artifact("br.com.objectos", "objectos.start", meta.startVersion, meta.startSha1)
+        };
+      }
+
+      default -> {
+        object0 = new Artifact[] {
+            new Artifact("br.com.objectos", "objectos.way", meta.wayVersion, meta.waySha1)
+        };
+      }
     }
 
     return $BOOT_DEPS_HAS_NEXT;
@@ -662,11 +754,34 @@ final class Way {
     final Path location;
     location = options.repoBoot.path();
 
-    final Path devClassOutput;
-    devClassOutput = options.devClassOutput.path();
+    final String className;
 
     final ModuleFinder finder;
-    finder = devClassOutput == null ? ModuleFinder.of(location) : ModuleFinder.of(location, devClassOutput);
+
+    final String stage;
+    stage = options.stage.string();
+
+    switch (stage) {
+      case "prod" -> {
+        className = "objectos.start.StartProd";
+
+        finder = ModuleFinder.of(location);
+      }
+
+      case "dev" -> {
+        className = "objectos.start.StartDev";
+
+        finder = ModuleFinder.of(location, options.classOutput.path());
+      }
+
+      case "test" -> {
+        className = "objectos.start.StartTest";
+
+        finder = ModuleFinder.of(location, options.classOutput.path());
+      }
+
+      default -> throw new AssertionError("Unexpected stage " + stage);
+    }
 
     final ModuleFinder afterFinder;
     afterFinder = ModuleFinder.of();
@@ -693,7 +808,7 @@ final class Way {
     final Class<?> startClass;
 
     try {
-      startClass = loader.loadClass("objectos.start.Start");
+      startClass = loader.loadClass(className);
     } catch (ClassNotFoundException | SecurityException e) {
       return toError("Failed to load the Objectos Start class", e);
     }

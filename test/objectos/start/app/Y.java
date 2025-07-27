@@ -1,19 +1,21 @@
 /*
+ * Objectos Start
  * Copyright (C) 2025 Objectos Software LTDA.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package objectos.start;
+package objectos.start.app;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -26,23 +28,45 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Consumer;
+import objectos.start.StartTest;
 import objectos.way.App;
+import objectos.way.Http;
 import objectos.way.Io;
 import objectos.way.Note;
+import org.testng.ISuite;
+import org.testng.ISuiteListener;
 
-public final class Y {
+public final class Y implements ISuiteListener {
 
-  private Y() {}
+  public static App.Injector INJECTOR;
+
+  public static Http.Handler HANDLER;
+
+  /// required by TestNG ISuiteListener
+  public Y() {}
+
+  @Override
+  public final void onStart(ISuite suite) {
+    if (INJECTOR == null) {
+      final Path basedir;
+      basedir = nextTempDir();
+
+      StartTest.startSuite(basedir);
+    }
+  }
 
   // ##################################################################
   // # BEGIN: Clock
   // ##################################################################
+
+  private static final Clock FIXED = Clock.fixed(
+      LocalDateTime.of(2025, 4, 28, 13, 1).atZone(ZoneOffset.UTC).toInstant(),
+      ZoneOffset.UTC
+  );
 
   public static Clock clockIncMillis(int year, int month, int day) {
     final LocalDateTime dateTime;
@@ -77,6 +101,30 @@ public final class Y {
   // ##################################################################
   // # END: Clock
   // ##################################################################
+
+  public static String handle(Http.Exchange http) {
+    HANDLER.handle(http);
+
+    final YResponseListener listener;
+    listener = http.get(YResponseListener.class);
+
+    return listener.toString();
+  }
+
+  public static Http.Exchange http(Consumer<? super Http.Exchange.Options> more) {
+    final YResponseListener listener;
+    listener = new YResponseListener(4);
+
+    return Http.Exchange.create(options -> {
+      options.clock(FIXED);
+
+      options.responseListener(listener);
+
+      options.set(YResponseListener.class, listener);
+
+      more.accept(options);
+    });
+  }
 
   // ##################################################################
   // # BEGIN: Next
@@ -170,7 +218,6 @@ public final class Y {
 
   private static final App.NoteSink INSTANCE = App.NoteSink.sysout();
 
-  @SuppressWarnings("exports")
   public static Note.Sink noteSink() {
     return INSTANCE;
   }
@@ -275,135 +322,6 @@ public final class Y {
 
   // ##################################################################
   // # END: Tab
-  // ##################################################################
-
-  // ##################################################################
-  // # BEGIN: Way.Logger
-  // ##################################################################
-
-  public static final class WayLogger implements Appendable {
-
-    private final List<String> logs = new ArrayList<>();
-
-    private WayLogger() {}
-
-    @Override
-    public final Appendable append(CharSequence csq) {
-      System.out.append(csq);
-
-      // strip out trailing newline
-      String msg = csq.toString();
-
-      msg = msg.substring(0, msg.length() - 1);
-
-      logs.add(msg);
-
-      return this;
-    }
-
-    @Override
-    public final Appendable append(CharSequence csq, int start, int end) throws IOException {
-      throw new UnsupportedOperationException("Implement me");
-    }
-
-    @Override
-    public final Appendable append(char c) throws IOException {
-      throw new UnsupportedOperationException("Implement me");
-    }
-
-    @Override
-    public final String toString() {
-      return String.join("", logs);
-    }
-
-  }
-
-  public static WayLogger wayLogger() {
-    return new WayLogger();
-  }
-
-  // ##################################################################
-  // # END: Way.Logger
-  // ##################################################################
-
-  // ##################################################################
-  // # BEGIN: Way.Meta
-  // ##################################################################
-
-  static final class Meta {
-
-    final String h2Sha1 = "4fcc05d966ccdb2812ae8b9a718f69226c0cf4e2"; // sed:H2_SHA1
-
-    final String h2Version = "2.3.232"; // sed:H2_VERSION
-
-    final String startSha1 = "4cd0e38ff37e1036274dde6a5071726aa94673c7"; // sed:START_SHA1
-
-    final String startVersion = "0.1.0-SNAPSHOT"; // sed:START_VERSION
-
-    final String waySha1 = "733728007861811ee00cb5da51b7e898749845cb"; // sed:WAY_SHA1
-
-    final String wayVersion = "0.2.6-SNAPSHOT"; // sed:WAY_VERSION
-
-  }
-
-  @SuppressWarnings("exports")
-  public static final Meta META = new Meta();
-
-  // ##################################################################
-  // # END: Way.Meta
-  // ##################################################################
-
-  // ##################################################################
-  // # BEGIN: WayTester
-  // ##################################################################
-
-  public static final class WayTester {
-
-    private final WayLogger logger;
-
-    private final Way way;
-
-    private WayTester(WayLogger logger, Way way) {
-      this.logger = logger;
-      this.way = way;
-    }
-
-    public final void args(String... args) {
-      way.object0(args.clone());
-    }
-
-    public final void execute(byte from, byte to) {
-      way.execute(from, to);
-    }
-
-    public final String logContaining(String substring) {
-      for (String log : logger.logs) {
-        if (log.contains(substring)) {
-          return log;
-        }
-      }
-
-      throw new NoSuchElementException(substring);
-    }
-
-  }
-
-  public static WayTester wayTester() {
-    final Y.WayLogger logger;
-    logger = Y.wayLogger();
-
-    final Way way;
-    way = new Way();
-
-    way.clock(clockIncMillis(2025, 1, 1));
-
-    way.logger(logger);
-
-    return new WayTester(logger, way);
-  }
-
-  // ##################################################################
-  // # END: WayTester
   // ##################################################################
 
 }

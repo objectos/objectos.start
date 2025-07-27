@@ -1,19 +1,21 @@
 /*
+ * Objectos Start
  * Copyright (C) 2025 Objectos Software LTDA.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-package objectos.start;
+package objectos.start.app;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
@@ -28,7 +30,8 @@ import java.nio.file.Path;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import objectos.start.Y.Project;
+import objectos.start.WayFacade;
+import objectos.start.app.Y.Project;
 import objectos.way.Note;
 
 final class YProject implements Y.Project {
@@ -52,7 +55,7 @@ final class YProject implements Y.Project {
 
   }
 
-  private static final String DEV_CLASS_OUTPUT = Path.of("work", "main").toAbsolutePath().toString();
+  private static final String CLASS_OUTPUT = Path.of("work", "main").toAbsolutePath().toString();
 
   private final Path basedir;
 
@@ -129,8 +132,9 @@ final class YProject implements Y.Project {
   @Override
   public final void start() {
     startWith(
+        "--stage", "dev",
         "--basedir", basedir.toString(),
-        "--dev-class-output", DEV_CLASS_OUTPUT,
+        "--class-output", CLASS_OUTPUT,
         "--workdir", basedir.resolve(".objectos").toString(),
         "--repo-boot", basedir.resolve(Path.of(".objectos", "boot")).toString(),
         "--repo-remote", Y.repoRemoteArg(),
@@ -140,10 +144,7 @@ final class YProject implements Y.Project {
 
   @Override
   public final void startWith(String... args) {
-    final Way way;
-    way = new Way();
-
-    server = way.start(args);
+    server = WayFacade.start(args);
 
     if (server == null) {
       throw new AssertionError("Server failed to start");
@@ -171,8 +172,18 @@ final class YProject implements Y.Project {
     final String baseUrl;
     baseUrl = "http://" + prefix + ".localhost:" + port;
 
+    Browser.NewPageOptions options;
+    options = new Browser.NewPageOptions().setBaseURL(baseUrl);
+
+    final boolean headless;
+    headless = Boolean.getBoolean("playwright.headless");
+
+    if (!headless) {
+      options = options.setViewportSize(null);
+    }
+
     final Page page;
-    page = browser.newPage();
+    page = browser.newPage(options);
 
     return new YTab(baseUrl, page);
   }

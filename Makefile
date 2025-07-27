@@ -138,8 +138,8 @@ $(JAR_LICENSE): LICENSE | $(JAR_META_INF)
 ## Way.java src
 WAY_JAVA := $(MAIN)/objectos/start/Way.java
 
-## Y.java src
-Y_JAVA := test/objectos/start/Y.java
+## WayFacade.java src
+WAY_FACADE_JAVA := test/objectos/start/WayFacade.java
 
 ## test repo
 TEST_REPO := $(WORK)/test-repo
@@ -194,7 +194,7 @@ $(TEST_REPO_MARKER): $(TEST_REPO_REQS) | $(TEST_REPO)
 		-e '/sed:START_SHA1/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_START) | cut -d' ' -f1 -z)"/' \
 		-e '/sed:WAY_VERSION/s/"[^"]*"/"$(WAY_VERSION)"/' \
 		-e '/sed:WAY_SHA1/s/"[^"]*"/"$(shell sha1sum $(TEST_REPO_DEP_WAY) | cut -d' ' -f1 -z)"/' \
-		$(WAY_JAVA)	$(Y_JAVA)
+		$(WAY_JAVA)	$(WAY_FACADE_JAVA)
 	touch $@
 
 #
@@ -223,17 +223,6 @@ TEST_MAIN := objectos.start.StartTest
 ## test runtime dependencies
 TEST_RUNTIME_DEPS := $(SLF4J_NOP)
 
-## test --add-modules
-#TEST_ADD_MODULES := org.testng
-#TEST_ADD_MODULES += org.slf4j
-#TEST_ADD_MODULES += com.h2database
-#TEST_ADD_MODULES += playwright
-#TEST_ADD_MODULES += com.google.gson
-
-## test --add-reads
-#TEST_ADD_READS := objectos.start=org.testng
-#TEST_ADD_READS += objectos.start=playwright
-
 ## test JVM options
 TEST_JVM_OPTS := -Dplaywright.headless=true
 
@@ -258,7 +247,8 @@ ifeq ($(ENABLE_DEBUG),1)
 WAY_JAVAX += -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=localhost:7000
 endif
 WAY_JAVAX += $(WAY_SCRIPT)
-WAY_JAVAX += --dev-class-output $(CLASS_OUTPUT)
+WAY_JAVAX += --stage dev
+WAY_JAVAX += --class-output $(CLASS_OUTPUT)
 WAY_JAVAX += --repo-remote $(LOCAL_REPO)/
 
 

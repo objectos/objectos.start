@@ -15,10 +15,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
-/// Defines the Objectos Start API.
-module objectos.start {
-  exports objectos.start;
+package objectos.start.app;
 
-  requires java.net.http;
-  requires objectos.way;
+import objectos.way.Html;
+
+final class HomeWelcome extends Html.Template {
+
+  @Override
+  protected final void render() {
+
+  }
+
 }

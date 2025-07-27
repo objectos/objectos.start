@@ -6,4 +6,4 @@ Objectos Start generates, builds and manages one or more Objectos Way applicatio
 
 Copyright (C) 2025 [Objectos Software LTDA](https://www.objectos.com.br)
 
-Licensed under the Apache License, Version 2.0.
+Licensed under the GNU Affero General Public License v3.

@@ -17,46 +17,20 @@
  */
 package objectos.start;
 
-import java.io.Closeable;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.Map;
 import objectos.start.app.Routes;
-import objectos.start.app.Y;
 import objectos.way.App;
 import objectos.way.Http;
-import org.testng.TestNG;
 
-public final class StartTest extends Start {
+public final class StartProd extends Start {
 
-  private StartTest(Map<String, Object> bootOptions) {
+  public StartProd(Map<String, Object> bootOptions) {
     super(bootOptions);
-  }
-
-  public static void main(String[] args) {
-    TestNG.main(new String[] {"-d", "work/test-output", "test/testng.xml"});
-  }
-
-  public static void startSuite(Path basedir) {
-    final Map<String, Object> bootOptions;
-    bootOptions = Map.of(
-        "--stage", "test",
-        "--basedir", basedir,
-        "--class-output", Path.of("work", "main"),
-        "--workdir", basedir.resolve(".objectos"),
-        "logger", System.out
-    );
-
-    try (StartTest start = new StartTest(bootOptions)) {
-      start.start(new String[] {});
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
   }
 
   @Override
   final void injectorStage(App.Injector.Options ctx) {
-    ctx.putInstance(STYLES_SCAN_DIRECTORY, bootOption("--class-output"));
+    // noop
   }
 
   @Override
@@ -65,16 +39,6 @@ public final class StartTest extends Start {
     module = new Routes(injector);
 
     return Http.Handler.of(module);
-  }
-
-  @Override
-  final Closeable server(App.Injector injector) {
-    Y.INJECTOR = injector;
-
-    Y.HANDLER = serverHandler(injector);
-
-    // noop
-    return () -> {};
   }
 
 }

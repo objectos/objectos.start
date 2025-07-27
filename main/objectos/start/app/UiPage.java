@@ -1,22 +1,23 @@
 /*
+ * Objectos Start
  * Copyright (C) 2025 Objectos Software LTDA.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 package objectos.start.app;
 
 import java.util.Objects;
-import objectos.start.app.Ui.Page;
 import objectos.way.Css;
 import objectos.way.Html;
 
@@ -25,21 +26,45 @@ final class UiPage extends Html.Template {
 
   private final String title;
 
-  UiPage(Page pojo) {
+  private final Html.Component body;
+
+  UiPage(Ui.Page pojo) {
     title = Objects.requireNonNull(pojo.title, "title == null");
+
+    body = Objects.requireNonNull(pojo.body, "body == null");
   }
 
   @Override
   protected final void render() {
     doctype();
+
     html(
+        css("""
+        background-color:html
+
+        color:text
+        """),
+
+        lang("en"),
+
         head(
+            meta(charset("utf-8")),
+            meta(httpEquiv("content-type"), content("text/html; charset=utf-8")),
+            meta(name("viewport"), content("width=device-width, initial-scale=1")),
             link(rel("stylesheet"), type("text/css"), href("/styles.css")),
             script(src("/script.js")),
             title(title)
         ),
+
         body(
-            h1("Welcome, Foo")
+            css("""
+            width:100%
+            min-height:100dvh
+
+            background-color:body
+            """),
+
+            renderComponent(body)
         )
     );
   }
